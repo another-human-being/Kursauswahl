@@ -26,10 +26,20 @@ module.exports = handler(async (req, res) => {
   const token = await guard(req, res); if (!token) return;
   const key = (process.env.MISTRAL_API_KEY || '').trim();
   if (!key) return send(res, 503, { error: 'Kein Mistral-Key hinterlegt' });
-  const { id, applicant } = req.body || {};
-  if (!ID.test(String(id || ''))) return send(res, 400, { error: 'Ungültige ID' });
-  const rows = await sb(`files?select=b64,meta&id=eq.${encodeURIComponent(id)}`, { token });
-  if (!rows.length || !rows[0].b64) return send(res, 404, { error: 'Dokument nicht gefunden' });
+  const { id, applicant, b64: raw } = req.body || {};
+  // Nur Texterkennung, ohne zu speichern: für Bewerbungsmails, die als PDF hochgeladen werden
+  const ocrOnly = !id && typeof raw === 'string';
+  let rows;
+  if (ocrOnly) {
+    if (!/^[A-Za-z0-9+/=]+$/.test(raw)) return send(res, 400, { error: 'Keine gültige Datei' });
+    if (raw.length > 4300000) return send(res, 413, { error: 'PDF zu groß (max. ca. 3 MB)' });
+    if (!Buffer.from(raw.slice(0, 16), 'base64').toString('latin1').startsWith('%PDF')) return send(res, 400, { error: 'Datei ist kein PDF' });
+    rows = [{ b64: raw }];
+  } else {
+    if (!ID.test(String(id || ''))) return send(res, 400, { error: 'Ungültige ID' });
+    rows = await sb(`files?select=b64,meta&id=eq.${encodeURIComponent(id)}`, { token });
+    if (!rows.length || !rows[0].b64) return send(res, 404, { error: 'Dokument nicht gefunden' });
+  }
 
   const ocr = await fetch('https://api.mistral.ai/v1/ocr', {
     method: 'POST',
@@ -44,6 +54,7 @@ module.exports = handler(async (req, res) => {
   const oj = await ocr.json();
   const pages = Array.isArray(oj.pages) ? oj.pages : [];
   const text = clean(pages.map(p => p.markdown || '').join('\n\n')).slice(0, 40000);
+  if (ocrOnly) return send(res, 200, { text, pages: pages.length });
 
   let art = 'sonstiges', verfasser = null;
   if (text) {

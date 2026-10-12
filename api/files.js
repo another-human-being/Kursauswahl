@@ -3,7 +3,7 @@
 const { sb, send, guard, handler } = require('./_lib');
 
 const ID = /^[\w-]{1,64}$/;
-const KINDS = ['motivation', 'empfehlung', 'lebenslauf', 'zeugnis', 'sonstiges'];
+const KINDS = ['motivation', 'empfehlung', 'lebenslauf', 'zeugnis', 'sonstiges', 'mail'];
 
 module.exports = handler(async (req, res) => {
   const token = await guard(req, res); if (!token) return;
@@ -20,7 +20,7 @@ module.exports = handler(async (req, res) => {
   }
 
   if (req.method === 'POST') {
-    const { id, app_id, name, b64, kind } = req.body || {};
+    const { id, app_id, name, b64, kind, meta } = req.body || {};
     if (!ID.test(String(id || '')) || !ID.test(String(app_id || ''))) return send(res, 400, { error: 'Ungültige ID' });
     if (typeof b64 !== 'string' || !/^[A-Za-z0-9+/=]+$/.test(b64)) return send(res, 400, { error: 'Keine gültige Datei' });
     if (b64.length > 4300000) return send(res, 413, { error: 'PDF zu groß (max. ca. 3 MB)' });
@@ -28,7 +28,7 @@ module.exports = handler(async (req, res) => {
     if (!head.startsWith('%PDF')) return send(res, 400, { error: 'Datei ist kein PDF' });
     await sb('files?on_conflict=id', {
       method: 'POST', token, prefer: 'resolution=merge-duplicates,return=minimal',
-      body: [{ id, app_id, name: String(name || 'dokument.pdf').slice(0, 200), mime: 'application/pdf', size: Math.round(b64.length * 0.75), b64, kind: KINDS.includes(kind) ? kind : 'sonstiges', deleted: false }],
+      body: [{ id, app_id, name: String(name || 'dokument.pdf').slice(0, 200), mime: 'application/pdf', size: Math.round(b64.length * 0.75), b64, kind: KINDS.includes(kind) ? kind : 'sonstiges', meta: meta && typeof meta === 'object' ? meta : {}, deleted: false }],
     });
     return send(res, 200, { ok: true });
   }

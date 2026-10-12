@@ -444,7 +444,7 @@ async function fillFromText(app,mail,motText){
     if(app.sem==null&&x.semester!=null){app.sem=x.semester;app.flags=app.flags.filter(f=>f!=='Semester fehlt')}}catch(e){}}
 }
 // Start-up Challenge: Motivation aus dem Anhang nur nehmen, wenn in der Mail selbst keine steht
-function useAttachedMotivation(app,mt){if(!mt)return false;if(app.mot&&!app.flags.includes('Motivation fehlt'))return false;
+function useAttachedMotivation(app,mt){if(!mt)return false;if((app.mot||'').trim())return false; // nie überschreiben, was schon drinsteht
   app.mot=mt.trim();app.flags=app.flags.filter(f=>!/^Motivation/.test(f));return true}
 async function importMails(mails){
   if(busy)return;busy=true;

@@ -435,7 +435,9 @@ async function processDocs(app,mail){
 }
 async function applyLetter(app,mail,motText){
   if(!motText){app.flags=app.flags.filter(f=>!/^Motivation/.test(f));app.flags.push('Motivationsschreiben fehlt');return}
-  app.mot=motText.trim();app.flags=app.flags.filter(f=>!/^Motivation/.test(f));
+  app.mot=motText.trim();app.flags=app.flags.filter(f=>!/^Motivation/.test(f));await fillFromText(app,mail,motText);
+}
+async function fillFromText(app,mail,motText){
   if((!app.sg||!app.abschluss||app.sem==null)&&HEALTH.mistral){try{const x=await api('/api/extract',{method:'POST',body:JSON.stringify({text:mail.text+'\n\nMotivationsschreiben:\n'+motText.slice(0,8000),from:mail.from,subject:mail.subject,studiengaenge:sgNames()})});
     if(!app.sg&&x.studiengang){app.sg=canonSg(x.studiengang);app.flags=app.flags.filter(f=>f!=='Studiengang fehlt')}
     if(!app.abschluss&&x.abschluss){app.abschluss=x.abschluss;app.flags=app.flags.filter(f=>f!=='Abschluss fehlt')}
@@ -451,10 +453,10 @@ async function importMails(mails){
   let done=0;const prog=()=>{const d=$('#drop');if(d){d.classList.add('busy');d.innerHTML=`Lese aus … ${done} / ${todo.length}<br><span class="m">${HEALTH.mistral?'mit Mistral':'mit Regeln'}${F().docs?', inklusive PDF-Anhängen':''}</span>`}};prog();
   const out=new Array(todo.length);let idx=0;
   async function worker(){while(idx<todo.length){const i=idx++;const r=await extract(todo[i]);if(r.err&&!stats.err)stats.err=r.err;const a=buildApp(todo[i],r.x,r.ai);
-    if(F().docs){const mt=await processDocs(a,todo[i]);if(F().letters)await applyLetter(a,todo[i],mt);else useAttachedMotivation(a,mt)}out[i]=a;done++;prog()}}
+    if(F().docs){const mt=await processDocs(a,todo[i]);if(F().letters)await applyLetter(a,todo[i],mt);else if(useAttachedMotivation(a,mt))await fillFromText(a,todo[i],mt)}out[i]=a;done++;prog()}}
   await Promise.all([worker(),worker(),worker()]);
   stats.docs=0;for(const {app,mail} of late){const d=$('#drop');if(d)d.innerHTML=`Lese Anhänge bestehender Bewerbungen … ${stats.docs+1} / ${late.length}`;
-    const mt=await processDocs(app,mail);if(F().letters)await applyLetter(app,mail,mt);else useAttachedMotivation(app,mt);stats.docs++}
+    const mt=await processDocs(app,mail);if(F().letters)await applyLetter(app,mail,mt);else if(useAttachedMotivation(app,mt))await fillFromText(app,mail,mt);stats.docs++}
   out.forEach(a=>{if(F().info&&Array.isArray(S.infoNames)&&S.infoNames.length){a.info=bestMatch(a,S.infoNames).score===2}a.order=S.apps.length;S.apps.push(a);stats.n++;if(a.flags.length)stats.check++});
   busy=false;save();lastImport=stats;render();
 }

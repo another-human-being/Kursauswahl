@@ -227,10 +227,10 @@ zusage:{s:'Zusage: {kurs}',b:'Hallo {vorname},\n\nvielen Dank für deine Bewerbu
 warte:{s:'Warteliste: {kurs}',b:'Hallo {vorname},\n\nvielen Dank für deine Bewerbung für die „{kurs}". Wir hatten deutlich mehr Bewerbungen als Plätze. Du stehst auf Platz {position} der Warteliste.\n\nSobald ein Platz frei wird, melden wir uns. Das passiert meist nach der ersten Sitzung am {termin}.\n\nViele Grüße\n{absender}'},
 absage:{s:'Deine Bewerbung: {kurs}',b:'Hallo {vorname},\n\nvielen Dank für dein Interesse an der „{kurs}". Leider hatten wir deutlich mehr Bewerbungen als Plätze und können dir diesmal keinen Platz anbieten.\n\nDas Gründungszentrum bietet laufend weitere Formate an. Wir freuen uns, wenn du dich wieder bewirbst.\n\nViele Grüße\n{absender}'},
 nach:{s:'Ein Platz ist frei: {kurs}',b:'Hallo {vorname},\n\nin der „{kurs}" ist ein Platz frei geworden, und du bist als Nächste:r auf der Warteliste dran.\n\nDie nächste Sitzung ist am {termin2} ({ort}). Komm einfach vorbei. Falls du keine Zeit mehr hast, sag uns bitte bis morgen Bescheid.\n\nViele Grüße\n{absender}'}};
-const COURSES={suc:{name:'Start-up Challenge',info:true,letters:false,docs:true},kanu:{name:'KANU',info:false,letters:true,docs:true}};
+const COURSES={suc:{name:'Start-up Challenge',info:true,letters:false,docs:true},kanu:{name:'KANU',info:false,letters:true,docs:true,plaetze:6}};
 let COURSE='suc';try{const c=JSON.parse(localStorage.getItem('kursauswahl-ui')||'{}').course;if(COURSES[c])COURSE=c}catch(e){}
 const F=()=>COURSES[COURSE];
-function emptyState(c){c=c||COURSE;return{apps:[],sgAlias:{},infoNames:null,demo:false,kurs:COURSES[c].name,semester:'WiSe 2026/27',plaetze:32,termin:'Mittwoch, 21.10.2026, 18:00 Uhr',termin2:'Mittwoch, 28.10.2026, 18:00 Uhr',ort:'Gründungszentrum',absender:'Team Gründungszentrum',senderAddr:'',tpl:JSON.parse(JSON.stringify(DEFAULT_TPL))}}
+function emptyState(c){c=c||COURSE;return{apps:[],sgAlias:{},infoNames:null,demo:false,kurs:COURSES[c].name,semester:'WiSe 2026/27',plaetze:(COURSES[c]&&COURSES[c].plaetze)||32,termin:'Mittwoch, 21.10.2026, 18:00 Uhr',termin2:'Mittwoch, 28.10.2026, 18:00 Uhr',ort:'Gründungszentrum',absender:'Team Gründungszentrum',senderAddr:'',tpl:JSON.parse(JSON.stringify(DEFAULT_TPL))}}
 
 /* ---------- server I/O (Team-Betrieb) ---------- */
 let S=null,REV=0,HEALTH={mistral:false},saveTimer=null,saving=false,dirty=false,TOKEN='',EPOCH=null;
@@ -338,7 +338,7 @@ function imageFrom(dt){
   const html=dt.getData&&dt.getData('text/html');const m=html&&html.match(/<img[^>]+src="([^"]+)"/i);if(m)return m[1].replace(/&amp;/g,'&');
   const uri=dt.getData&&((dt.getData('text/uri-list')||dt.getData('text/plain')||'').trim().split(/\s+/)[0]);
   if(uri&&/^(https:\/\/|data:image\/)/.test(uri))return uri;return null}
-function photoTarget(){if(sel)return sel;if(tab==='import')return null;if(tab==='auswahl'&&sub==='durchgang'){const q=S.apps.filter(a=>a.status==='offen'&&!a.seen).sort((a,b)=>a.order-b.order);return q[0]&&q[0].id}return null}
+function photoTarget(){if(sel)return sel;if(tab==='import')return null;if(tab==='auswahl'&&sub==='durchgang'){const q=swipeQueue().q;return q[0]&&q[0].id}return null}
 document.addEventListener('paste',e=>{if(!sel&&tab==='import'&&F().info&&$('#infoDrop')){const f=[...((e.clipboardData&&e.clipboardData.files)||[])].filter(x=>/^image\//.test(x.type));if(f.length){e.preventDefault();readAttendeeShots(f)}return}const id=photoTarget();if(!id)return;const ae=document.activeElement;
   const img=imageFrom(e.clipboardData);if(!img)return;if(typeof img==='string'&&ae&&/INPUT|TEXTAREA/.test(ae.tagName))return;
   e.preventDefault();setPhoto(id,img)});
@@ -666,12 +666,16 @@ function rImport(){
 
 /* ---------- /auswahl ---------- */
 function rAuswahl(){
-  const open=S.apps.filter(a=>a.status==='offen'&&!a.seen).length,later=S.apps.filter(a=>a.status==='offen'&&a.seen).length;
+  const open=q1().length+q2().length,later=S.apps.filter(a=>a.status==='offen'&&a.seen).length;
   if(sub!=='board')sub='durchgang';
   $('#main').innerHTML=`<div class="sub" id="sub"><button class="link" data-s="durchgang">durchgang <span class="f">${open}</span></button><button class="link" data-s="board">board <span class="f">${later}</span></button></div><div id="pane"></div>`;
   $$('#sub button').forEach(b=>{b.setAttribute('aria-current',b.dataset.s===sub);b.onclick=()=>{sub=b.dataset.s;saveUi();rAuswahl()}});
   ({durchgang:rSwipe,board:rBoard})[sub]();
 }
+// Durchgang: erst alle Neuen, danach kommen die auf Wiedervorlage („später“) noch einmal
+const q1=()=>S.apps.filter(a=>a.status==='offen'&&!a.seen).sort((a,b)=>a.order-b.order);
+const q2=()=>S.apps.filter(a=>a.status==='offen'&&a.seen&&(a.later||1)<2).sort((a,b)=>a.order-b.order);
+const swipeQueue=()=>{const x=q1();return x.length?{q:x,round:1}:{q:q2(),round:2}};
 function swipeBody(a,front){
   return `<div class="sc-head"><div class="sc-ph"${front?' id="scPh" title="Foto hierher ziehen oder mit ⌘V einfügen"':''}>${PHOTOS[a.id]?photoTag(a.id,'fill'):'<span>Foto</span>'}</div><div><div class="sc-name">${fullName(a)}${front?` <button class="star big ${a.fav?'on':''}" data-fav="${a.id}" title="Favorit">${a.fav?'★':'☆'}</button>`:''}</div>${a.info===true?'<div class="info big">war bei der Infoveranstaltung</div>':''}<div class="sc-meta">${esc(a.sg||'Studiengang unklar')} · ${esc(a.abschluss||'?')} · ${a.sem??'?'}. Semester</div></div></div>
      ${F().letters&&recCount(a)?`<p class="recs">${recCount(a)} Empfehlungsschreiben${filesOf(a.id).filter(f=>f.kind==='empfehlung'&&authorOf(f)).length?': '+filesOf(a.id).filter(f=>f.kind==='empfehlung').map(f=>esc(authorOf(f)||'unbekannt')).join(' · '):''}</p>`:''}
@@ -682,17 +686,17 @@ function swipeBody(a,front){
 let undoFrom=null;
 const SW_T=110,SW_V=.45,reduced=()=>matchMedia('(prefers-reduced-motion: reduce)').matches;
 function rSwipe(){
-  const q=S.apps.filter(a=>a.status==='offen'&&!a.seen).sort((a,b)=>a.order-b.order);
-  const total=S.apps.length,done=total-q.length,ja=byStatus('zusage').length,nein=byStatus('absage').length,sp=S.apps.filter(a=>a.status==='offen'&&a.seen).length;
+  const {q,round}=swipeQueue();const r2all=S.apps.filter(a=>a.status==='offen'&&a.seen&&(a.later||1)<2||a.r2).length;
+  const total=round===1?S.apps.length:r2all,done=total-q.length,ja=byStatus('zusage').length,nein=byStatus('absage').length,sp=S.apps.filter(a=>a.status==='offen'&&a.seen).length;
   const a=q[0];
   $('#pane').innerHTML=`<div class="swipe">
-   <div class="sw-top"><span>${done} / ${total}</span><span><span class="${ja>P()?'bad':''}">${ja} ja</span> · ${sp} später · ${nein} nein</span></div><div class="bar"><span style="width:${total?done/total*100:0}%"></span></div>
+   ${round===2&&q.length?`<p class="notice" style="text-align:center">Wiedervorlage: die Bewerbungen, die ihr auf „später“ gesetzt habt, kommen jetzt noch einmal. Wieder „später“ heißt: ab aufs Board.</p>`:''}<div class="sw-top"><span>${round===2?'Wiedervorlage ':''}${done} / ${total}</span><span><span class="${ja>P()?'bad':''}">${ja} ja</span> · ${sp} später · ${nein} nein</span></div><div class="bar"><span style="width:${total?done/total*100:0}%"></span></div>
    ${a?`<div class="stack">${q[1]?`<div class="scard back" id="scBack" aria-hidden="true">${swipeBody(q[1],false)}</div>`:''}<div class="scard" id="sc">
      <span class="stamp" id="stamp"></span>${swipeBody(a,true)}</div></div>
    <div class="sw-btns">
      <button class="rb s" id="undo" title="Rückgängig (Z)" aria-label="Rückgängig" ${hist.length?'':'disabled'}>↺</button>
      <button class="rb" data-d="nein" title="Nein (←)" aria-label="Nein">✕</button>
-     <button class="rb s" data-d="spaeter" title="Später nochmal ansehen (↓)" aria-label="Später">↓</button>
+     <button class="rb s" data-d="spaeter" title="${round===1?'Später nochmal ansehen (↓)':'Aufs Board für die Diskussion (↓)'}" aria-label="Später">↓</button>
      <button class="rb s ${a.fav?'on':''}" data-fav="${a.id}" title="Favorit (↑)" aria-label="Favorit">${a.fav?'★':'☆'}</button>
      <button class="rb" data-d="ja" title="Ja (→)" aria-label="Ja">✓</button></div>
    <div class="sw-keys">wischen oder ← nein · ↓ später · → ja · ↑ favorit · leertaste details · z rückgängig</div>`
@@ -742,9 +746,9 @@ function rSwipe(){
     if(a.fav!==!!$('.sw-btns [data-fav]').classList.contains('on'))setTimeout(rSwipe,300);dx=dy=0};
 }
 function decide(d,fling){
-  const a=S.apps.filter(x=>x.status==='offen'&&!x.seen).sort((x,y)=>x.order-y.order)[0];if(!a)return;
-  hist.push({id:a.id,d});const c=$('#sc'),bk=$('#scBack');
-  const go=()=>{a.seen=true;if(d==='ja'){a.order=byStatus('zusage').length;a.status='zusage'}else if(d==='nein'){a.order=byStatus('absage').length;a.status='absage'}save();header();rAuswahl()};
+  const {q,round}=swipeQueue(),a=q[0];if(!a)return;
+  hist.push({id:a.id,d,prev:{seen:a.seen,later:a.later,r2:a.r2,order:a.order}});const c=$('#sc'),bk=$('#scBack');
+  const go=()=>{a.seen=true;if(round===2)a.r2=true;if(d==='spaeter')a.later=round===1?1:2;if(d==='ja'){a.order=byStatus('zusage').length;a.status='zusage'}else if(d==='nein'){a.order=byStatus('absage').length;a.status='absage'}save();header();rAuswahl()};
   if(!c||reduced())return go();
   const W=innerWidth,H=innerHeight;let tx,ty,rot;
   if(d==='spaeter'){tx=fling?fling.dx:0;ty=H;rot=fling?fling.sign*fling.dx/14:0}
@@ -756,8 +760,10 @@ function decide(d,fling){
   if(bk){bk.style.transition=`transform ${dur}ms ease-out`;bk.style.transform='none'}
   setTimeout(go,dur-10);
 }
-function undo(){const h=hist.pop();if(!h)return;const a=S.apps.find(x=>x.id===h.id);if(!a)return;a.status='offen';a.seen=false;a.mail=null;a.order=-1;undoFrom=h.d||null;
-  S.apps.filter(x=>x.status==='offen'&&!x.seen).sort((x,y)=>x.order-y.order).forEach((x,i)=>x.order=i);save();header();rAuswahl()}
+function undo(){const h=hist.pop();if(!h)return;const a=S.apps.find(x=>x.id===h.id);if(!a)return;a.status='offen';a.mail=null;undoFrom=h.d||null;
+  if(h.prev){a.seen=h.prev.seen;if(h.prev.later==null)delete a.later;else a.later=h.prev.later;if(h.prev.r2)a.r2=true;else delete a.r2;a.order=-1;
+    (a.seen?S.apps.filter(x=>x.status==='offen'&&x.seen):q1()).sort((x,y)=>x.order-y.order).forEach((x,i)=>x.order=i)}
+  else{a.seen=false;a.order=-1;q1().forEach((x,i)=>x.order=i)}save();header();rAuswahl()}
 function mixLine(){const z=byStatus('zusage');const c=f=>{const m={};z.forEach(a=>{const v=f(a);m[v]=(m[v]||0)+1});return m};
   const ab=c(a=>a.abschluss||'?'),g=c(a=>a.g),top=Object.entries(c(a=>sgS(a.sg))).sort((a,b)=>b[1]-a[1]).slice(0,4);
   const inf=z.filter(a=>a.info===true).length;return `<div class="mix"><span>Zusagen</span>${F().info&&Array.isArray(S.infoNames)?`<span><b>${inf}</b> mit Info</span>`:''}${F().letters?`<span><b>${z.filter(a=>recCount(a)).length}</b> mit Empfehlung</span>`:''}<span><b>${ab.Bachelor||0}</b> B <b>${ab.Master||0}</b> M</span><span><b>${g.w||0}</b> w <b>${g.m||0}</b> m <b>${g['?']||0}</b> ?</span><span>${top.map(([k,v])=>`${esc(k)} <b>${v}</b>`).join('  ')}</span></div>`}
@@ -784,7 +790,7 @@ function wireDnD(){
 const before=(b,y)=>[...b.querySelectorAll('.card:not(.dragging)')].find(c=>{const r=c.getBoundingClientRect();return y<r.top+r.height/2})||null;
 function move(id,col,beforeId){const a=S.apps.find(x=>x.id===id);if(!a)return;
   const l=byStatus(col).filter(x=>x.id!==id);let i=beforeId?l.findIndex(x=>x.id===beforeId):l.length;if(i<0)i=l.length;l.splice(i,0,a);
-  a.seen=true;if(a.status!==col){a.status=col;a.mail=null;a.anwesend=null;if(col!=='zusage')a.nachruecker=false}l.forEach((x,k)=>x.order=k);save();render()}
+  a.seen=true;if(col==='offen')a.later=2;if(a.status!==col){a.status=col;a.mail=null;a.anwesend=null;if(col!=='zusage')a.nachruecker=false}l.forEach((x,k)=>x.order=k);save();render()}
 
 /* ---------- PDF-Ansicht ---------- */
 async function openPdf(id){const f=FILES[id];if(!f)return;const L=$('#reader');

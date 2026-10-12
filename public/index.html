@@ -141,6 +141,11 @@ footer{margin-top:60px;color:var(--faint);display:flex;gap:22px}
 .ph.th{width:24px;height:24px;border-radius:50%;margin-right:8px;vertical-align:-6px}
 .ph.th.lg{width:34px;height:34px;vertical-align:-11px}
 .ph.fill{width:100%;height:100%;display:block}
+img.ph[data-ph]{cursor:zoom-in}
+.rd.lb{display:grid;place-items:center;padding:24px;background:color-mix(in srgb,var(--bg) 88%,transparent);cursor:zoom-out}
+.rd.lb figure{margin:0;display:grid;gap:10px;justify-items:center}
+.lbimg{display:block;max-width:min(92vw,900px);max-height:82vh;object-fit:contain;border:1px solid var(--fg);background:var(--bg)}
+.rd.lb figcaption{display:flex;gap:18px;align-items:baseline;font-size:15px}
 .sc-head{display:flex;gap:18px;align-items:flex-start;margin-bottom:22px}
 .sc-head .sc-meta{margin-bottom:0}
 .sc-ph{width:104px;height:104px;flex:none;border:1px dashed var(--rule);display:grid;place-items:center;color:var(--faint);font-size:12px;overflow:hidden}
@@ -301,7 +306,7 @@ new MutationObserver(()=>hydratePhotos()).observe(document.body,{childList:true,
 async function toDataUrl(src){
   if(typeof src==='string'){if(src.startsWith('data:image/'))return src;const j=await api('/api/fetch-image',{method:'POST',body:JSON.stringify({url:src})});return j.dataUrl}
   return await new Promise((res,rej)=>{const fr=new FileReader();fr.onload=()=>res(fr.result);fr.onerror=()=>rej(new Error('Datei nicht lesbar'));fr.readAsDataURL(src)})}
-async function shrink(dataUrl){const img=new Image();img.src=dataUrl;await img.decode();const k=Math.min(1,640/Math.max(img.naturalWidth,img.naturalHeight));
+async function shrink(dataUrl){const img=new Image();img.src=dataUrl;await img.decode();const k=Math.min(1,1000/Math.max(img.naturalWidth,img.naturalHeight));
   const c=document.createElement('canvas');c.width=Math.max(1,Math.round(img.naturalWidth*k));c.height=Math.max(1,Math.round(img.naturalHeight*k));
   const g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);g.drawImage(img,0,0,c.width,c.height);return c.toDataURL('image/jpeg',.85)}
 async function setPhoto(id,src){
@@ -692,6 +697,11 @@ async function openPdf(id){const f=FILES[id];if(!f)return;const L=$('#reader');
   catch(e){const p=L.querySelector('.rd-in p');if(p)p.textContent=e.message}}
 function docsLine(a){const fs=filesOf(a.id);if(!fs.length)return'';const order={motivation:0,empfehlung:1,lebenslauf:2,zeugnis:3,sonstiges:4};
   return `<div class="docs">${fs.sort((x,y)=>order[x.kind]-order[y.kind]).map(f=>`<button class="link u" data-pdf="${f.id}">${esc(f.kind==='empfehlung'&&authorOf(f)?'Empfehlung: '+authorOf(f):KIND_LABEL[f.kind]||'Dokument')}</button>`).join('<span class="f"> · </span>')}</div>`}
+function openPhoto(id){const a=[...S.apps,...OTHER].find(x=>x.id===id);const L=$('#reader');
+  L.innerHTML=`<div class="rd lb" role="dialog" aria-label="Foto" tabindex="-1"><figure><img class="lbimg" data-ph="${esc(id)}" alt="${a?fullName(a):''}"><figcaption>${a?fullName(a):''}<button class="link m" id="lbClose">schließen</button></figcaption></figure></div>`;
+  const close=()=>{L.innerHTML='';document.removeEventListener('keydown',k,true)};const k=e=>{if(e.key==='Escape'){e.stopPropagation();e.preventDefault();close()}};
+  document.addEventListener('keydown',k,true);L.querySelector('.rd').onclick=close;L.querySelector('.rd').focus()}
+document.addEventListener('click',e=>{const ph=e.target.closest&&e.target.closest('img.ph[data-ph]');if(ph){e.preventDefault();e.stopPropagation();openPhoto(ph.dataset.ph);return}},true);
 document.addEventListener('click',e=>{const o=e.target.closest&&e.target.closest('[data-open]');if(o){e.preventDefault();sel=o.dataset.open;rSheet();return}const b=e.target.closest&&e.target.closest('[data-pdf]');if(b){e.preventDefault();e.stopPropagation();openPdf(b.dataset.pdf)}},true);
 
 /* ---------- original mail reader ---------- */
@@ -714,7 +724,7 @@ function rSheet(){
   <div style="display:flex;justify-content:space-between;gap:10px"><span class="m">${d6(a.date)}</span><button class="link" id="close">schließen</button></div>
   <div class="phrow"><div class="phbox" id="phBox" tabindex="0" role="button">${PHOTOS[a.id]?photoTag(a.id,'fill'):'Foto hierher ziehen,<br>mit ⌘V einfügen<br>oder klicken'}</div>
    <div class="phside"><input type="file" id="phFile" accept="image/*" hidden><label for="phUrl">Bild-Adresse</label><input id="phUrl" placeholder="https://…" autocomplete="off">
-    <div class="actions" style="margin-top:8px"><button class="btn small" id="phUrlGo">Übernehmen</button>${PHOTOS[a.id]?'<button class="link u bad" id="phDel">Foto entfernen</button>':''}</div>
+    <div class="actions" style="margin-top:8px"><button class="btn small" id="phUrlGo">Übernehmen</button>${PHOTOS[a.id]?'<button class="link u" id="phNew">Foto ersetzen</button><button class="link u bad" id="phDel">Foto entfernen</button>':''}</div>
     <p class="f" style="margin-top:8px">In LinkedIn oder Google: Rechtsklick › Bild kopieren, dann hier ⌘V.</p></div></div>
   <div class="fields" style="margin-top:14px">
     <div><label for="eVn">Vorname</label><input id="eVn" value="${esc(a.vn)}"></div><div><label for="eNn">Nachname</label><input id="eNn" value="${esc(a.nn)}"></div>
@@ -742,7 +752,7 @@ function rSheet(){
   $$('[data-kind]').forEach(s=>s.onchange=async()=>{const f=FILES[s.dataset.kind];f.kind=s.value;try{await api('/api/files',{method:'PATCH',body:JSON.stringify({id:f.id,kind:s.value})})}catch(e){toast(e.message)}rSheet()});
   $$('[data-delf]').forEach(b=>b.onclick=async()=>{if(!b.dataset.c){b.dataset.c=1;b.textContent='löschen?';return}try{await api('/api/files?id='+encodeURIComponent(b.dataset.delf),{method:'DELETE'});delete FILES[b.dataset.delf];rSheet()}catch(e){toast(e.message)}});
   if($('#eInfo'))$('#eInfo').onchange=e=>{a.info=e.target.checked;a.infoManual=true;save();header()};
-  wirePhotoDrop($('#phBox'),a.id);$('#phBox').onclick=()=>$('#phFile').click();$('#phBox').onkeydown=e=>{if(e.key==='Enter')$('#phFile').click()};
+  wirePhotoDrop($('#phBox'),a.id);$('#phBox').onclick=e=>{if(!e.target.closest('img'))$('#phFile').click()};if($('#phNew'))$('#phNew').onclick=()=>$('#phFile').click();$('#phBox').onkeydown=e=>{if(e.key==='Enter')$('#phFile').click()};
   $('#phFile').onchange=e=>{const f=e.target.files[0];if(f)setPhoto(a.id,f)};
   $('#phUrlGo').onclick=()=>{const u=$('#phUrl').value.trim();if(u){$('#phUrl').blur();setPhoto(a.id,u)}};
   if($('#phDel'))$('#phDel').onclick=()=>removePhoto(a.id);

@@ -436,17 +436,44 @@ function matchScore(a,p){
 function bestMatch(a,list){let best=0,who=null;for(const p of list){const s=matchScore(a,p);if(s>best){best=s;who=p;if(s===2)break}}return{score:best,who}}
 let infoReview=null;
 function infoBadge(a){return a.info===true?'<span class="info" title="War bei der Infoveranstaltung">info ✓</span>':''}
+// Word-Datei (.docx) im Browser entpacken und Text samt Tabellenzeilen auslesen
+async function docxText(file){
+  const buf=new Uint8Array(await file.arrayBuffer()),dv=new DataView(buf.buffer,buf.byteOffset,buf.byteLength);let eocd=-1;
+  for(let i=buf.length-22;i>=Math.max(0,buf.length-65558);i--){if(dv.getUint32(i,true)===0x06054b50){eocd=i;break}}
+  if(eocd<0)throw new Error(file.name+' ist keine gültige Word-Datei');
+  const n=dv.getUint16(eocd+10,true);let p=dv.getUint32(eocd+16,true);
+  for(let k=0;k<n&&dv.getUint32(p,true)===0x02014b50;k++){
+    const method=dv.getUint16(p+10,true),csize=dv.getUint32(p+20,true),nlen=dv.getUint16(p+28,true),elen=dv.getUint16(p+30,true),clen=dv.getUint16(p+32,true),off=dv.getUint32(p+42,true);
+    const name=new TextDecoder().decode(buf.subarray(p+46,p+46+nlen));
+    if(name==='word/document.xml'){const start=off+30+dv.getUint16(off+26,true)+dv.getUint16(off+28,true),data=buf.subarray(start,start+csize);
+      let xml;if(method===0)xml=new TextDecoder().decode(data);else if(method===8){if(typeof DecompressionStream==='undefined')throw new Error('Dieser Browser kann Word-Dateien nicht entpacken. Bitte Chrome, Safari oder Firefox aktualisieren.');xml=await new Response(new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).text()}
+      else throw new Error('Word-Datei nicht lesbar');return docxXmlText(xml)}
+    p+=46+nlen+elen+clen}
+  throw new Error(file.name+': kein Dokumenttext gefunden');
+}
+function docxXmlText(xml){
+  const W='http://schemas.openxmlformats.org/wordprocessingml/2006/main',doc=new DOMParser().parseFromString(xml,'application/xml');
+  const body=doc.getElementsByTagNameNS(W,'body')[0];if(!body)return'';
+  const para=el=>[...el.getElementsByTagNameNS(W,'t')].map(t=>t.textContent).join('');const out=[];
+  for(const el of body.children){if(el.localName==='p')out.push(para(el));
+    else if(el.localName==='tbl')for(const tr of el.getElementsByTagNameNS(W,'tr'))out.push([...tr.getElementsByTagNameNS(W,'tc')].map(tc=>[...tc.getElementsByTagNameNS(W,'p')].map(para).join(' ').trim()).join(' | '))}
+  return out.map(l=>l.trim()).filter(l=>l&&l.replace(/[|\s]/g,'')).join('\n');
+}
+function chunkLines(text,max){const out=[];let cur='';for(const l of text.split('\n')){if(cur.length+l.length+1>max&&cur){out.push(cur);cur=''}cur+=(cur?'\n':'')+l}if(cur)out.push(cur);return out}
 async function readAttendeeShots(files){
-  const imgs=[...files].filter(f=>/^image\//.test(f.type));if(!imgs.length){toast('Keine Bilder erkannt');return}
+  const isDocx=f=>/\.docx$/i.test(f.name)||f.type==='application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  const imgs=[...files].filter(f=>/^image\//.test(f.type)||isDocx(f));if(!imgs.length){toast('Keine Bilder oder Word-Dateien erkannt. Ältere .doc bitte in Word als .docx speichern.',5000);return}
   if(!HEALTH.mistral){toast('Zum Auslesen der Screenshots wird der Mistral-Key gebraucht.',5000);return}
   const box=$('#infoDrop');let all=[],err=null;
-  for(let i=0;i<imgs.length;i++){if(box)box.innerHTML=`Lese Screenshot ${i+1} / ${imgs.length} …`;
-    try{const d=await shrinkTo(await toDataUrl(imgs[i]),2000,.9);const j=await api('/api/attendees',{method:'POST',body:JSON.stringify({image:d})});all=all.concat(j.personen||[])}
+  for(let i=0;i<imgs.length;i++){if(box)box.innerHTML=`Lese Datei ${i+1} / ${imgs.length} …`;
+    try{if(isDocx(imgs[i])){const t=await docxText(imgs[i]);if(!t.trim())throw new Error(imgs[i].name+' enthält keinen Text');
+        for(const part of chunkLines(t,12000)){const j=await api('/api/attendees',{method:'POST',body:JSON.stringify({text:part})});all=all.concat(j.personen||[])}}
+      else{const d=await shrinkTo(await toDataUrl(imgs[i]),2000,.9);const j=await api('/api/attendees',{method:'POST',body:JSON.stringify({image:d})});all=all.concat(j.personen||[])}}
     catch(e){if(e.status===401)return;err=e.message}}
   const key=p=>nameKey(p.name)+'|'+(p.email||'');const merged=Array.isArray(S.infoNames)?[...S.infoNames]:[];const have=new Set(merged.map(key));
   all.forEach(p=>{const k=key(p);if(!have.has(k)){have.add(k);merged.push(p)}});
   S.infoNames=merged;buildInfoReview();save();render();
-  toast(`${all.length} Namen gelesen`+(err?`. Nicht alle Screenshots lesbar: ${err}`:''),err?7000:3000);
+  toast(`${all.length} Namen gelesen`+(err?`. Nicht alle Dateien lesbar: ${err}`:''),err?7000:3000);
 }
 function buildInfoReview(){
   const list=S.infoNames||[];const used=new Set();const sure=[],unsure=[];
@@ -457,7 +484,7 @@ function buildInfoReview(){
 function infoSection(){
   const has=Array.isArray(S.infoNames)&&S.infoNames.length;const n=S.apps.filter(a=>a.info===true).length;const rv=infoReview;
   return `<section class="sec" style="margin-top:34px"><h2>Infoveranstaltung</h2>
-   <div class="drop" id="infoDrop" tabindex="0" role="button" style="padding:22px 16px">Screenshots der Teilnehmerliste hier ablegen<br><span class="m">oder klicken, oder mit ⌘V einfügen</span></div><input type="file" id="infoFile" accept="image/*" multiple hidden>
+   <div class="drop" id="infoDrop" tabindex="0" role="button" style="padding:22px 16px">Teilnehmerliste hier ablegen<br><span class="m">Screenshots oder Word-Datei (.docx), oder klicken, oder Screenshot mit ⌘V einfügen</span></div><input type="file" id="infoFile" accept="image/*,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" multiple hidden>
    ${has?`<p>${S.infoNames.length} Namen auf der Liste · <b style="font-weight:500">${n}</b> Bewerbungen mit Teilnahme. <button class="link u m" id="infoShow">Liste ansehen</button> · <button class="link u m" id="infoClear">Liste entfernen</button></p>`:'<p class="m">Noch keine Teilnehmerliste.</p>'}
    ${rv&&rv.unsure.length?`<div class="notice"><p>Bitte bestätigen, ob das dieselbe Person ist:</p>${rv.unsure.map(x=>{const a=S.apps.find(y=>y.id===x.id);if(!a)return'';return `<div class="att"><span>${fullName(a)} <span class="m">↔ ${esc(x.who.name)}</span></span><span class="seg"><button data-ok="${x.id}">ja</button><button class="n" data-no="${x.id}">nein</button></span></div>`}).join('')}</div>`:''}
    <div id="infoList"></div></section>`;

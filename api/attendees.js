@@ -16,14 +16,21 @@ module.exports = handler(async (req, res) => {
   const key = (process.env.MISTRAL_API_KEY || '').trim();
   if (!key) return send(res, 503, { error: 'Kein Mistral-Key hinterlegt' });
   const img = String((req.body || {}).image || '');
-  if (!/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(img)) return send(res, 400, { error: 'Kein gültiges Bild' });
-  if (img.length > 4000000) return send(res, 413, { error: 'Bild zu groß' });
+  const text = typeof (req.body || {}).text === 'string' ? req.body.text.slice(0, 15000) : '';
+  let content;
+  if (text.trim()) {
+    content = `${PROMPT.replace('Das Bild ist ein Screenshot einer Teilnehmerliste', 'Der folgende Text stammt aus einer Teilnehmerliste').replace('Text im Bild', 'Der Text').replace('wie im Bild', 'wie im Text')}\nTabellenzeilen sind mit | getrennt; Vor- und Nachname können in getrennten Spalten stehen.\n\n<<<LISTE\n${text}\nLISTE>>>`;
+  } else {
+    if (!/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(img)) return send(res, 400, { error: 'Kein gültiges Bild' });
+    if (img.length > 4000000) return send(res, 413, { error: 'Bild zu groß' });
+    content = [{ type: 'text', text: PROMPT }, { type: 'image_url', image_url: img }];
+  }
   const r = await fetch('https://api.mistral.ai/v1/chat/completions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
     body: JSON.stringify({
       model: process.env.MISTRAL_VISION_MODEL || 'mistral-small-latest', temperature: 0, response_format: { type: 'json_object' },
-      messages: [{ role: 'user', content: [{ type: 'text', text: PROMPT }, { type: 'image_url', image_url: img }] }],
+      messages: [{ role: 'user', content }],
     }),
     signal: AbortSignal.timeout(55000),
   });

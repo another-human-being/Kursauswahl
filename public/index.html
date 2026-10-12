@@ -436,20 +436,34 @@ function matchScore(a,p){
 function bestMatch(a,list){let best=0,who=null;for(const p of list){const s=matchScore(a,p);if(s>best){best=s;who=p;if(s===2)break}}return{score:best,who}}
 let infoReview=null;
 function infoBadge(a){return a.info===true?'<span class="info" title="War bei der Infoveranstaltung">info ✓</span>':''}
-// Word-Datei (.docx) im Browser entpacken und Text samt Tabellenzeilen auslesen
-async function docxText(file){
+// Word-Datei (.docx) im Browser entpacken: Text samt Tabellen und eingebettete Bilder (Screenshots)
+async function unzip(file){
   const buf=new Uint8Array(await file.arrayBuffer()),dv=new DataView(buf.buffer,buf.byteOffset,buf.byteLength);let eocd=-1;
   for(let i=buf.length-22;i>=Math.max(0,buf.length-65558);i--){if(dv.getUint32(i,true)===0x06054b50){eocd=i;break}}
   if(eocd<0)throw new Error(file.name+' ist keine gültige Word-Datei');
-  const n=dv.getUint16(eocd+10,true);let p=dv.getUint32(eocd+16,true);
+  const n=dv.getUint16(eocd+10,true);let p=dv.getUint32(eocd+16,true);const entries=[];
   for(let k=0;k<n&&dv.getUint32(p,true)===0x02014b50;k++){
     const method=dv.getUint16(p+10,true),csize=dv.getUint32(p+20,true),nlen=dv.getUint16(p+28,true),elen=dv.getUint16(p+30,true),clen=dv.getUint16(p+32,true),off=dv.getUint32(p+42,true);
-    const name=new TextDecoder().decode(buf.subarray(p+46,p+46+nlen));
-    if(name==='word/document.xml'){const start=off+30+dv.getUint16(off+26,true)+dv.getUint16(off+28,true),data=buf.subarray(start,start+csize);
-      let xml;if(method===0)xml=new TextDecoder().decode(data);else if(method===8){if(typeof DecompressionStream==='undefined')throw new Error('Dieser Browser kann Word-Dateien nicht entpacken. Bitte Chrome, Safari oder Firefox aktualisieren.');xml=await new Response(new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).text()}
-      else throw new Error('Word-Datei nicht lesbar');return docxXmlText(xml)}
-    p+=46+nlen+elen+clen}
-  throw new Error(file.name+': kein Dokumenttext gefunden');
+    entries.push({name:new TextDecoder().decode(buf.subarray(p+46,p+46+nlen)),method,csize,off});p+=46+nlen+elen+clen}
+  const read=async e=>{const start=e.off+30+dv.getUint16(e.off+26,true)+dv.getUint16(e.off+28,true),data=buf.subarray(start,start+e.csize);
+    if(e.method===0)return data;if(e.method!==8)throw new Error('Word-Datei nicht lesbar');
+    if(typeof DecompressionStream==='undefined')throw new Error('Dieser Browser kann Word-Dateien nicht entpacken. Bitte Chrome, Safari oder Firefox aktualisieren.');
+    return new Uint8Array(await new Response(new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer())};
+  return{entries,read};
+}
+async function docxParts(file){
+  const z=await unzip(file);const docE=z.entries.find(e=>e.name==='word/document.xml');if(!docE)throw new Error(file.name+': kein Dokumenttext gefunden');
+  const xml=new TextDecoder().decode(await z.read(docE));
+  // Bilder in der Reihenfolge, in der sie im Dokument vorkommen
+  let order=[];try{const rels=z.entries.find(e=>e.name==='word/_rels/document.xml.rels');if(rels){const rx=new TextDecoder().decode(await z.read(rels));const map={};
+    rx.replace(/<Relationship\b[^>]*>/g,t=>{const id=(t.match(/Id="([^"]+)"/)||[])[1],tg=(t.match(/Target="([^"]+)"/)||[])[1];if(id&&tg)map[id]='word/'+tg.replace(/^\/?word\//,'').replace(/^\.\//,'');return t});
+    xml.replace(/r:embed="([^"]+)"/g,(m,id)=>{if(map[id]&&!order.includes(map[id]))order.push(map[id]);return m})}}catch(e){}
+  const media=z.entries.filter(e=>/^word\/media\/.+\.(png|jpe?g|gif|bmp|webp)$/i.test(e.name));
+  media.sort((a,b)=>{const ia=order.indexOf(a.name),ib=order.indexOf(b.name);return(ia<0?1e9:ia)-(ib<0?1e9:ib)});
+  const images=[];for(const e of media){if(e.csize<1500)continue;const ext=e.name.split('.').pop().toLowerCase();
+    images.push(new Blob([await z.read(e)],{type:'image/'+(ext==='jpg'?'jpeg':ext)}))}
+  const skipped=z.entries.filter(e=>/^word\/media\/.+\.(emf|wmf|tiff?)$/i.test(e.name)).length;
+  return{text:docxXmlText(xml),images,skipped};
 }
 function docxXmlText(xml){
   const W='http://schemas.openxmlformats.org/wordprocessingml/2006/main',doc=new DOMParser().parseFromString(xml,'application/xml');
@@ -466,8 +480,13 @@ async function readAttendeeShots(files){
   if(!HEALTH.mistral){toast('Zum Auslesen der Screenshots wird der Mistral-Key gebraucht.',5000);return}
   const box=$('#infoDrop');let all=[],err=null;
   for(let i=0;i<imgs.length;i++){if(box)box.innerHTML=`Lese Datei ${i+1} / ${imgs.length} …`;
-    try{if(isDocx(imgs[i])){const t=await docxText(imgs[i]);if(!t.trim())throw new Error(imgs[i].name+' enthält keinen Text');
-        for(const part of chunkLines(t,12000)){const j=await api('/api/attendees',{method:'POST',body:JSON.stringify({text:part})});all=all.concat(j.personen||[])}}
+    try{if(isDocx(imgs[i])){const d=await docxParts(imgs[i]);
+        if(d.text.trim())for(const part of chunkLines(d.text,12000)){const j=await api('/api/attendees',{method:'POST',body:JSON.stringify({text:part})});all=all.concat(j.personen||[])}
+        for(let k=0;k<d.images.length;k++){if(box)box.innerHTML=`Word-Datei ${i+1} / ${imgs.length}: Bild ${k+1} / ${d.images.length} …`;
+          try{const u=await shrinkTo(await toDataUrl(d.images[k]),2000,.9);const j=await api('/api/attendees',{method:'POST',body:JSON.stringify({image:u})});all=all.concat(j.personen||[])}
+          catch(e){if(e.status===401)return;err=`Bild ${k+1} in ${imgs[i].name}: ${e.message}`}}
+        if(d.skipped)err=(err?err+'. ':'')+`${d.skipped} Bilder im Format EMF/WMF/TIFF konnten nicht gelesen werden, bitte als PNG einfügen`;
+        if(!d.text.trim()&&!d.images.length)throw new Error(imgs[i].name+' enthält weder Text noch Bilder')}
       else{const d=await shrinkTo(await toDataUrl(imgs[i]),2000,.9);const j=await api('/api/attendees',{method:'POST',body:JSON.stringify({image:d})});all=all.concat(j.personen||[])}}
     catch(e){if(e.status===401)return;err=e.message}}
   const key=p=>nameKey(p.name)+'|'+(p.email||'');const merged=Array.isArray(S.infoNames)?[...S.infoNames]:[];const have=new Set(merged.map(key));

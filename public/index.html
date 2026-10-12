@@ -492,17 +492,17 @@ function rImport(){
   <details><summary>Mailtext einfügen</summary><textarea id="raw" style="min-height:140px;margin-top:10px" placeholder="Absender und Text der Mail hier einfügen"></textarea><div style="margin-top:8px"><button class="btn" id="addRaw">Übernehmen</button></div></details>
   ${S.apps.length?`<div style="display:flex;justify-content:space-between;margin-bottom:6px"><span>${S.apps.length} Bewerbungen</span><span class="${flagged.length?'bad':'m'}">${flagged.length?flagged.length+' prüfen':'alles geprüft'}</span></div>
   <div class="list">${list.map(a=>`<div class="li" data-id="${a.id}"><span class="m">${d6(a.date)}</span><span class="x">${photoTag(a.id,'th')}${fullName(a)} <span class="m">${meta(a)} · ${a.g}</span> ${infoBadge(a)}</span><span class="tag ${a.flags.length?'bad':''}">${a.flags.length?esc(a.flags[0])+(a.flags.length>1?' +'+(a.flags.length-1):''):''}</span></div>`).join('')}</div>`
-  :`<p class="m">Noch keine Bewerbungen. <button class="link u" id="demo">Mit Beispieldaten ausprobieren</button></p>`}${S.apps.length?infoSection():''}</div>`;
+  :`<p class="m">Noch keine Bewerbungen. <button class="link u" id="demo">Mit Beispieldaten ausprobieren</button></p>`}${infoSection()}</div>`;
   const dz=$('#drop');
   dz.onclick=()=>{if(!busy)$('#file').click()};dz.onkeydown=e=>{if(e.key==='Enter'&&!busy)$('#file').click()};
   $('#file').onchange=e=>importFiles([...e.target.files]);
   dz.ondragover=e=>{e.preventDefault();dz.classList.add('over')};dz.ondragleave=()=>dz.classList.remove('over');
   dz.ondrop=async e=>{e.preventDefault();dz.classList.remove('over');if(busy)return;const f=await filesFromDrop(e.dataTransfer);if(f.length)importFiles(f);else toast('Keine Dateien erkannt. Mails erst in einen Finder-Ordner ziehen und von dort ablegen.',4000)};
   $('#addRaw').onclick=()=>{const v=$('#raw').value.trim();if(!v)return;const raw=/^[\w-]+:/.test(v)&&/\r?\n\r?\n/.test(v)?v:'Subject: Bewerbung\n\n'+v;importMails([toMail(raw)])};
+  wireInfoSection();
   if($('#demo'))$('#demo').onclick=()=>{const d=demoApps();S.apps=d;S.demo=true;save();render()};
   if($('#clearDemo'))$('#clearDemo').onclick=()=>{S.apps=[];S.demo=false;hist=[];save();render()};
   $$('.li').forEach(r=>r.onclick=()=>{sel=r.dataset.id;rSheet()});
-  wireInfoSection();
 }
 
 /* ---------- /auswahl ---------- */

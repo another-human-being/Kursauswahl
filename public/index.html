@@ -258,7 +258,11 @@ function applyRemote(j,full){
     let arr=S.apps,i=arr.findIndex(a=>a.id===row.id);if(i<0){arr=OTHER;i=arr.findIndex(a=>a.id===row.id)}
     if(row.deleted){const pd=i>=0&&pending(arr[i]);if(i>=0&&!pd){arr.splice(i,1);changed=true}if(!pd)SHADOW.delete(row.id);continue}
     if(i>=0&&pending(arr[i]))continue;
-    const a=normApp(row.data,row.id);if(i>=0)arr.splice(i,1);(a.course===COURSE?S.apps:OTHER).push(a);SHADOW.set(row.id,JSON.stringify(a));changed=true}
+    // Objekt an Ort und Stelle aktualisieren, damit offene Ansichten und laufende Vorgänge ihre Referenz behalten
+    const a=normApp(row.data,row.id);let o=a;
+    if(i>=0){o=arr[i];Object.keys(o).forEach(k=>delete o[k]);Object.assign(o,a);const want=o.course===COURSE?S.apps:OTHER;if(want!==arr){arr.splice(i,1);want.push(o)}}
+    else (a.course===COURSE?S.apps:OTHER).push(a);
+    SHADOW.set(row.id,JSON.stringify(o));changed=true}
   for(const f of j.files||[]){if(f.deleted)delete FILES[f.id];else FILES[f.id]=f;changed=true}
   for(const p of j.photos||[]){PHOTOS[p.id]=p.has?p.rev:0;changed=true}
   JOBS=j.jobs||[];HELPER=j.helperSeen||null;if(j.now)SKEW=Date.parse(j.now)-Date.now();

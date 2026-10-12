@@ -129,6 +129,8 @@ kbd{font:inherit;color:var(--faint);margin-left:6px}
 #offline{position:fixed;top:0;left:0;right:0;background:var(--bad);color:#fff;padding:6px 20px;z-index:20}
 footer{margin-top:60px;color:var(--faint);display:flex;gap:22px}
 .btn.small{padding:3px 9px;font-size:13px}
+.info{font-size:12px;border:1px solid var(--fg);padding:0 5px;white-space:nowrap;color:var(--fg)}
+.info.big{display:inline-block;font-size:13px;margin:2px 0 6px;padding:1px 7px}
 .ph{display:inline-block;object-fit:cover;background:var(--hover);vertical-align:middle}
 .ph.th{width:24px;height:24px;border-radius:50%;margin-right:8px;vertical-align:-6px}
 .ph.th.lg{width:34px;height:34px;vertical-align:-11px}
@@ -196,12 +198,12 @@ zusage:{s:'Zusage: {kurs}',b:'Hallo {vorname},\n\nvielen Dank für deine Bewerbu
 warte:{s:'Warteliste: {kurs}',b:'Hallo {vorname},\n\nvielen Dank für deine Bewerbung für die „{kurs}". Wir hatten deutlich mehr Bewerbungen als Plätze. Du stehst auf Platz {position} der Warteliste.\n\nSobald ein Platz frei wird, melden wir uns. Das passiert meist nach der ersten Sitzung am {termin}.\n\nViele Grüße\n{absender}'},
 absage:{s:'Deine Bewerbung: {kurs}',b:'Hallo {vorname},\n\nvielen Dank für dein Interesse an der „{kurs}". Leider hatten wir deutlich mehr Bewerbungen als Plätze und können dir diesmal keinen Platz anbieten.\n\nDas Gründungszentrum bietet laufend weitere Formate an. Wir freuen uns, wenn du dich wieder bewirbst.\n\nViele Grüße\n{absender}'},
 nach:{s:'Ein Platz ist frei: {kurs}',b:'Hallo {vorname},\n\nin der „{kurs}" ist ein Platz frei geworden, und du bist als Nächste:r auf der Warteliste dran.\n\nDie nächste Sitzung ist am {termin2} ({ort}). Komm einfach vorbei. Falls du keine Zeit mehr hast, sag uns bitte bis morgen Bescheid.\n\nViele Grüße\n{absender}'}};
-function emptyState(){return{apps:[],sgAlias:{},demo:false,kurs:'Start-up Challenge',semester:'WiSe 2026/27',plaetze:32,termin:'Mittwoch, 21.10.2026, 18:00 Uhr',termin2:'Mittwoch, 28.10.2026, 18:00 Uhr',ort:'Gründungszentrum',absender:'Team Gründungszentrum',senderAddr:'',tpl:JSON.parse(JSON.stringify(DEFAULT_TPL))}}
+function emptyState(){return{apps:[],sgAlias:{},infoNames:null,demo:false,kurs:'Start-up Challenge',semester:'WiSe 2026/27',plaetze:32,termin:'Mittwoch, 21.10.2026, 18:00 Uhr',termin2:'Mittwoch, 28.10.2026, 18:00 Uhr',ort:'Gründungszentrum',absender:'Team Gründungszentrum',senderAddr:'',tpl:JSON.parse(JSON.stringify(DEFAULT_TPL))}}
 
 /* ---------- server I/O (Team-Betrieb) ---------- */
 let S=null,REV=0,HEALTH={mistral:false},saveTimer=null,saving=false,dirty=false,TOKEN='',EPOCH=null;
 let SHADOW=new Map(),SET_SHADOW='',PHOTOS={},JOBS=[],HELPER=null,SKEW=0,needRender=false,swipeDown=false,lastSig='';
-const SETTINGS_KEYS=['kurs','semester','plaetze','termin','termin2','ort','absender','senderAddr','tpl','sgAlias','demo'];
+const SETTINGS_KEYS=['kurs','semester','plaetze','termin','termin2','ort','absender','senderAddr','tpl','sgAlias','demo','infoNames'];
 async function api(path,opts={}){
   const r=await fetch(path,{...opts,headers:{'Content-Type':'application/json','X-Team-Token':TOKEN,...(opts.headers||{})}});
   let j=null;try{j=await r.json()}catch(_){}
@@ -291,8 +293,8 @@ function imageFrom(dt){
   const html=dt.getData&&dt.getData('text/html');const m=html&&html.match(/<img[^>]+src="([^"]+)"/i);if(m)return m[1].replace(/&amp;/g,'&');
   const uri=dt.getData&&((dt.getData('text/uri-list')||dt.getData('text/plain')||'').trim().split(/\s+/)[0]);
   if(uri&&/^(https:\/\/|data:image\/)/.test(uri))return uri;return null}
-function photoTarget(){if(sel)return sel;if(tab==='auswahl'&&sub==='durchgang'){const q=S.apps.filter(a=>a.status==='offen'&&!a.seen).sort((a,b)=>a.order-b.order);return q[0]&&q[0].id}return null}
-document.addEventListener('paste',e=>{const id=photoTarget();if(!id)return;const ae=document.activeElement;
+function photoTarget(){if(sel)return sel;if(tab==='import')return null;if(tab==='auswahl'&&sub==='durchgang'){const q=S.apps.filter(a=>a.status==='offen'&&!a.seen).sort((a,b)=>a.order-b.order);return q[0]&&q[0].id}return null}
+document.addEventListener('paste',e=>{if(!sel&&tab==='import'&&$('#infoDrop')){const f=[...((e.clipboardData&&e.clipboardData.files)||[])].filter(x=>/^image\//.test(x.type));if(f.length){e.preventDefault();readAttendeeShots(f)}return}const id=photoTarget();if(!id)return;const ae=document.activeElement;
   const img=imageFrom(e.clipboardData);if(!img)return;if(typeof img==='string'&&ae&&/INPUT|TEXTAREA/.test(ae.tagName))return;
   e.preventDefault();setPhoto(id,img)});
 function wirePhotoDrop(el,id){if(!el)return;
@@ -400,7 +402,7 @@ async function importMails(mails){
   const out=new Array(todo.length);let idx=0;
   async function worker(){while(idx<todo.length){const i=idx++;const r=await extract(todo[i]);if(r.err&&!stats.err)stats.err=r.err;out[i]=buildApp(todo[i],r.x,r.ai);done++;prog()}}
   await Promise.all([worker(),worker(),worker()]);
-  out.forEach(a=>{a.order=S.apps.length;S.apps.push(a);stats.n++;if(a.flags.length)stats.check++});
+  out.forEach(a=>{if(Array.isArray(S.infoNames)&&S.infoNames.length){a.info=bestMatch(a,S.infoNames).score===2}a.order=S.apps.length;S.apps.push(a);stats.n++;if(a.flags.length)stats.check++});
   busy=false;save();lastImport=stats;render();
 }
 async function importFiles(files){
@@ -416,6 +418,66 @@ async function filesFromDrop(dt){
   for(const e of entries)await walk(e);return out;
 }
 
+/* ---------- Infoveranstaltung ---------- */
+const nameKey=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/ß/g,'ss').replace(/ı/g,'i').replace(/\([^)]*\)/g,' ').replace(/[^a-z@. ]/g,' ').replace(/\s+/g,' ').trim();
+function lev(a,b){if(a===b)return 0;const m=a.length,n=b.length;if(!m||!n)return m||n;let p=Array.from({length:n+1},(_,j)=>j);for(let i=1;i<=m;i++){const c=[i];for(let j=1;j<=n;j++)c[j]=Math.min(p[j]+1,c[j-1]+1,p[j-1]+(a[i-1]===b[j-1]?0:1));p=c}return p[n]}
+// Vergleicht eine Bewerbung mit einem Listeneintrag: 2 = sicher, 1 = unsicher, 0 = kein Treffer
+function matchScore(a,p){
+  if(p.email&&a.email&&p.email===a.email.toLowerCase())return 2;
+  const full=nameKey(a.vn+' '+a.nn),q=nameKey(p.name).split(' ').filter(x=>!x.includes('@')).join(' ');if(!full||!q)return 0;
+  const tA=full.split(' ').sort().join(' '),tQ=q.split(' ').sort().join(' ');
+  if(full===q||tA===tQ)return 2;
+  const vn=nameKey(a.vn).split(' ')[0],nn=nameKey(a.nn).split(' ').pop(),qt=q.split(' ');
+  if(nn&&vn&&qt.includes(nn)&&qt.includes(vn))return 2;
+  if(full.length>6&&(lev(full,q)<=2||lev(tA,tQ)<=2))return 1;
+  if(nn&&vn&&qt.includes(nn)&&qt.some(t=>t[0]===vn[0]))return 1;
+  return 0;
+}
+function bestMatch(a,list){let best=0,who=null;for(const p of list){const s=matchScore(a,p);if(s>best){best=s;who=p;if(s===2)break}}return{score:best,who}}
+let infoReview=null;
+function infoBadge(a){return a.info===true?'<span class="info" title="War bei der Infoveranstaltung">info ✓</span>':''}
+async function readAttendeeShots(files){
+  const imgs=[...files].filter(f=>/^image\//.test(f.type));if(!imgs.length){toast('Keine Bilder erkannt');return}
+  if(!HEALTH.mistral){toast('Zum Auslesen der Screenshots wird der Mistral-Key gebraucht.',5000);return}
+  const box=$('#infoDrop');let all=[],err=null;
+  for(let i=0;i<imgs.length;i++){if(box)box.innerHTML=`Lese Screenshot ${i+1} / ${imgs.length} …`;
+    try{const d=await shrinkTo(await toDataUrl(imgs[i]),2000,.9);const j=await api('/api/attendees',{method:'POST',body:JSON.stringify({image:d})});all=all.concat(j.personen||[])}
+    catch(e){if(e.status===401)return;err=e.message}}
+  const key=p=>nameKey(p.name)+'|'+(p.email||'');const merged=Array.isArray(S.infoNames)?[...S.infoNames]:[];const have=new Set(merged.map(key));
+  all.forEach(p=>{const k=key(p);if(!have.has(k)){have.add(k);merged.push(p)}});
+  S.infoNames=merged;buildInfoReview();save();render();
+  toast(`${all.length} Namen gelesen`+(err?`. Nicht alle Screenshots lesbar: ${err}`:''),err?7000:3000);
+}
+function buildInfoReview(){
+  const list=S.infoNames||[];const used=new Set();const sure=[],unsure=[];
+  S.apps.forEach(a=>{if(a.infoManual)return;const m=bestMatch(a,list);if(m.score===2){sure.push(a.id);used.add(m.who)}else if(m.score===1){unsure.push({id:a.id,who:m.who});used.add(m.who)}});
+  S.apps.forEach(a=>{if(!a.infoManual)a.info=sure.includes(a.id)});
+  infoReview={unsure};
+}
+function infoSection(){
+  const has=Array.isArray(S.infoNames)&&S.infoNames.length;const n=S.apps.filter(a=>a.info===true).length;const rv=infoReview;
+  return `<section class="sec" style="margin-top:34px"><h2>Infoveranstaltung</h2>
+   <div class="drop" id="infoDrop" tabindex="0" role="button" style="padding:22px 16px">Screenshots der Teilnehmerliste hier ablegen<br><span class="m">oder klicken, oder mit ⌘V einfügen</span></div><input type="file" id="infoFile" accept="image/*" multiple hidden>
+   ${has?`<p>${S.infoNames.length} Namen auf der Liste · <b style="font-weight:500">${n}</b> Bewerbungen mit Teilnahme. <button class="link u m" id="infoShow">Liste ansehen</button> · <button class="link u m" id="infoClear">Liste entfernen</button></p>`:'<p class="m">Noch keine Teilnehmerliste.</p>'}
+   ${rv&&rv.unsure.length?`<div class="notice"><p>Bitte bestätigen, ob das dieselbe Person ist:</p>${rv.unsure.map(x=>{const a=S.apps.find(y=>y.id===x.id);if(!a)return'';return `<div class="att"><span>${fullName(a)} <span class="m">↔ ${esc(x.who.name)}</span></span><span class="seg"><button data-ok="${x.id}">ja</button><button class="n" data-no="${x.id}">nein</button></span></div>`}).join('')}</div>`:''}
+   <div id="infoList"></div></section>`;
+}
+function wireInfoSection(){
+  const dz=$('#infoDrop');if(!dz)return;
+  dz.onclick=()=>$('#infoFile').click();dz.onkeydown=e=>{if(e.key==='Enter')$('#infoFile').click()};
+  $('#infoFile').onchange=e=>readAttendeeShots(e.target.files);
+  dz.ondragover=e=>{e.preventDefault();dz.classList.add('over')};dz.ondragleave=()=>dz.classList.remove('over');
+  dz.ondrop=e=>{e.preventDefault();dz.classList.remove('over');readAttendeeShots(e.dataTransfer.files)};
+  const res=(id,v)=>{const a=S.apps.find(x=>x.id===id);if(a){a.info=v;a.infoManual=true}infoReview.unsure=infoReview.unsure.filter(x=>x.id!==id);save();render()};
+  $$('[data-ok]').forEach(b=>b.onclick=()=>res(b.dataset.ok,true));$$('[data-no]').forEach(b=>b.onclick=()=>res(b.dataset.no,false));
+  if($('#infoShow'))$('#infoShow').onclick=()=>{$('#infoList').innerHTML=`<div class="list" style="margin-top:10px">${(S.infoNames||[]).map(p=>{const a=S.apps.find(x=>x.info===true&&matchScore(x,p)>0);return `<div class="att"><span>${esc(p.name)}${p.email?` <span class="m">${esc(p.email)}</span>`:''}</span><span class="m">${a?'→ '+fullName(a):'keine Bewerbung'}</span></div>`}).join('')}</div>`};
+  if($('#infoClear'))$('#infoClear').onclick=()=>{const b=$('#infoClear');if(!b.dataset.c){b.dataset.c=1;b.textContent='Wirklich entfernen? Nochmal klicken';return}
+    S.infoNames=null;infoReview=null;S.apps.forEach(a=>{delete a.info;delete a.infoManual});save();render()};
+}
+async function shrinkTo(dataUrl,max,q){const img=new Image();img.src=dataUrl;await img.decode();const k=Math.min(1,max/Math.max(img.naturalWidth,img.naturalHeight));
+  const c=document.createElement('canvas');c.width=Math.max(1,Math.round(img.naturalWidth*k));c.height=Math.max(1,Math.round(img.naturalHeight*k));
+  const g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);g.drawImage(img,0,0,c.width,c.height);return c.toDataURL('image/jpeg',q)}
+
 /* ---------- /import ---------- */
 function rImport(){
   const flagged=S.apps.filter(a=>a.flags.length);
@@ -429,8 +491,8 @@ function rImport(){
   ${lastImport?`<p style="margin:-14px 0 26px">${lastImport.n} importiert${lastImport.dup?` · ${lastImport.dup} schon vorhanden`:''}${lastImport.check?` · <span class="bad">${lastImport.check} prüfen</span>`:''}${lastImport.skip?` · ${lastImport.skip} Dateien ignoriert`:''}${lastImport.err?`<br><span class="bad">Mistral-Fehler: ${esc(lastImport.err)}</span>`:''}</p>`:''}
   <details><summary>Mailtext einfügen</summary><textarea id="raw" style="min-height:140px;margin-top:10px" placeholder="Absender und Text der Mail hier einfügen"></textarea><div style="margin-top:8px"><button class="btn" id="addRaw">Übernehmen</button></div></details>
   ${S.apps.length?`<div style="display:flex;justify-content:space-between;margin-bottom:6px"><span>${S.apps.length} Bewerbungen</span><span class="${flagged.length?'bad':'m'}">${flagged.length?flagged.length+' prüfen':'alles geprüft'}</span></div>
-  <div class="list">${list.map(a=>`<div class="li" data-id="${a.id}"><span class="m">${d6(a.date)}</span><span class="x">${photoTag(a.id,'th')}${fullName(a)} <span class="m">${meta(a)} · ${a.g}</span></span><span class="tag ${a.flags.length?'bad':''}">${a.flags.length?esc(a.flags[0])+(a.flags.length>1?' +'+(a.flags.length-1):''):''}</span></div>`).join('')}</div>`
-  :`<p class="m">Noch keine Bewerbungen. <button class="link u" id="demo">Mit Beispieldaten ausprobieren</button></p>`}</div>`;
+  <div class="list">${list.map(a=>`<div class="li" data-id="${a.id}"><span class="m">${d6(a.date)}</span><span class="x">${photoTag(a.id,'th')}${fullName(a)} <span class="m">${meta(a)} · ${a.g}</span> ${infoBadge(a)}</span><span class="tag ${a.flags.length?'bad':''}">${a.flags.length?esc(a.flags[0])+(a.flags.length>1?' +'+(a.flags.length-1):''):''}</span></div>`).join('')}</div>`
+  :`<p class="m">Noch keine Bewerbungen. <button class="link u" id="demo">Mit Beispieldaten ausprobieren</button></p>`}${S.apps.length?infoSection():''}</div>`;
   const dz=$('#drop');
   dz.onclick=()=>{if(!busy)$('#file').click()};dz.onkeydown=e=>{if(e.key==='Enter'&&!busy)$('#file').click()};
   $('#file').onchange=e=>importFiles([...e.target.files]);
@@ -440,6 +502,7 @@ function rImport(){
   if($('#demo'))$('#demo').onclick=()=>{const d=demoApps();S.apps=d;S.demo=true;save();render()};
   if($('#clearDemo'))$('#clearDemo').onclick=()=>{S.apps=[];S.demo=false;hist=[];save();render()};
   $$('.li').forEach(r=>r.onclick=()=>{sel=r.dataset.id;rSheet()});
+  wireInfoSection();
 }
 
 /* ---------- /auswahl ---------- */
@@ -458,7 +521,7 @@ function rSwipe(){
    <div class="sw-top"><span>${done} / ${total}</span><span><span class="${ja>P()?'bad':''}">${ja} ja</span> · ${sp} später · ${nein} nein</span></div><div class="bar"><span style="width:${total?done/total*100:0}%"></span></div>
    ${a?`<div class="stack">${q[1]?'<div class="scard back"></div>':''}<div class="scard" id="sc">
      <span class="stamp" id="stamp"></span>
-     <div class="sc-head"><div class="sc-ph" id="scPh" title="Foto hierher ziehen oder mit ⌘V einfügen">${PHOTOS[a.id]?photoTag(a.id,'fill'):'<span>Foto</span>'}</div><div><div class="sc-name">${fullName(a)}</div><div class="sc-meta">${esc(a.sg||'Studiengang unklar')} · ${esc(a.abschluss||'?')} · ${a.sem??'?'}. Semester</div></div></div>
+     <div class="sc-head"><div class="sc-ph" id="scPh" title="Foto hierher ziehen oder mit ⌘V einfügen">${PHOTOS[a.id]?photoTag(a.id,'fill'):'<span>Foto</span>'}</div><div><div class="sc-name">${fullName(a)}</div>${a.info===true?'<div class="info big">war bei der Infoveranstaltung</div>':''}<div class="sc-meta">${esc(a.sg||'Studiengang unklar')} · ${esc(a.abschluss||'?')} · ${a.sem??'?'}. Semester</div></div></div>
      <p class="sc-mot">${esc(a.mot)||'<span class="m">Keine Motivation erkannt.</span>'}</p>
      ${a.flags.length?`<p class="bad" style="margin:18px 0 0">${a.flags.map(esc).join(', ')}</p>`:''}</div></div>
    <div class="sw-btns"><button class="btn" data-d="nein">Nein<kbd>←</kbd></button><button class="btn" data-d="spaeter">Später<kbd>↓</kbd></button><button class="btn solid" data-d="ja">Ja<kbd>→</kbd></button></div>`
@@ -489,7 +552,7 @@ function undo(){const h=hist.pop();if(!h)return;const a=S.apps.find(x=>x.id===h.
   S.apps.filter(x=>x.status==='offen'&&!x.seen).sort((x,y)=>x.order-y.order).forEach((x,i)=>x.order=i);save();header();rAuswahl()}
 function mixLine(){const z=byStatus('zusage');const c=f=>{const m={};z.forEach(a=>{const v=f(a);m[v]=(m[v]||0)+1});return m};
   const ab=c(a=>a.abschluss||'?'),g=c(a=>a.g),top=Object.entries(c(a=>sgS(a.sg))).sort((a,b)=>b[1]-a[1]).slice(0,4);
-  return `<div class="mix"><span>Zusagen</span><span><b>${ab.Bachelor||0}</b> B <b>${ab.Master||0}</b> M</span><span><b>${g.w||0}</b> w <b>${g.m||0}</b> m <b>${g['?']||0}</b> ?</span><span>${top.map(([k,v])=>`${esc(k)} <b>${v}</b>`).join('  ')}</span></div>`}
+  const inf=z.filter(a=>a.info===true).length;return `<div class="mix"><span>Zusagen</span>${Array.isArray(S.infoNames)?`<span><b>${inf}</b> mit Info</span>`:''}<span><b>${ab.Bachelor||0}</b> B <b>${ab.Master||0}</b> M</span><span><b>${g.w||0}</b> w <b>${g.m||0}</b> m <b>${g['?']||0}</b> ?</span><span>${top.map(([k,v])=>`${esc(k)} <b>${v}</b>`).join('  ')}</span></div>`}
 function rBoard(){
   const cols=[['offen','nochmal ansehen'],['zusage','zusage'],['warte','warteliste'],['absage','absage']];
   const unseen=S.apps.filter(a=>a.status==='offen'&&!a.seen).length;
@@ -500,7 +563,7 @@ function rBoard(){
   if($('#goSw'))$('#goSw').onclick=()=>{sub='durchgang';saveUi();rAuswahl()};
   wireDnD();
 }
-function card(a,pos,full){return `<div class="card" draggable="true" data-id="${a.id}" tabindex="0"><div class="top"><span class="nm">${pos?`<span class="m">${pos}&nbsp;&nbsp;</span>`:''}${photoTag(a.id,'th')}${fullName(a)}</span><span class="mt">${meta(a)}</span></div>${full?`<div class="mot">${esc(a.mot)}</div>`:''}</div>`}
+function card(a,pos,full){return `<div class="card" draggable="true" data-id="${a.id}" tabindex="0"><div class="top"><span class="nm">${pos?`<span class="m">${pos}&nbsp;&nbsp;</span>`:''}${photoTag(a.id,'th')}${fullName(a)}</span><span class="mt">${infoBadge(a)} ${meta(a)}</span></div>${full?`<div class="mot">${esc(a.mot)}</div>`:''}</div>`}
 let dragId=null;
 function wireDnD(){
   $$('.card').forEach(c=>{c.ondragstart=e=>{dragId=c.dataset.id;c.classList.add('dragging');e.dataTransfer.effectAllowed='move';try{e.dataTransfer.setData('text/plain',dragId)}catch(_){}};
@@ -540,6 +603,7 @@ function rSheet(){
   <div class="fields" style="margin-top:14px">
     <div><label for="eVn">Vorname</label><input id="eVn" value="${esc(a.vn)}"></div><div><label for="eNn">Nachname</label><input id="eNn" value="${esc(a.nn)}"></div>
     <div class="full"><label for="eEm">E-Mail</label><input id="eEm" value="${esc(a.email)}"></div></div>
+  <p style="margin-top:12px"><label style="display:inline;color:var(--fg)"><input type="checkbox" id="eInfo" style="width:auto;margin-right:8px" ${a.info===true?'checked':''}>bei der Infoveranstaltung</label></p>
   <div class="st">${Object.keys(SN).map(s=>`<button class="link ${a.status===s?'on':''}" data-s="${s}">${SN[s]}</button>`).join('')}</div>
   <div class="fields">
     <div class="full"><label for="eSg">Studiengang</label><input id="eSg" list="sgList" value="${esc(a.sg)}"><datalist id="sgList">${sgs.map(s=>`<option value="${esc(s)}">`).join('')}</datalist></div>
@@ -553,6 +617,7 @@ function rSheet(){
   </aside>`;
   const close=()=>{sel=null;render()};
   $('#openMail').onclick=()=>openMail(a.id);
+  $('#eInfo').onchange=e=>{a.info=e.target.checked;a.infoManual=true;save();header()};
   wirePhotoDrop($('#phBox'),a.id);$('#phBox').onclick=()=>$('#phFile').click();$('#phBox').onkeydown=e=>{if(e.key==='Enter')$('#phFile').click()};
   $('#phFile').onchange=e=>{const f=e.target.files[0];if(f)setPhoto(a.id,f)};
   $('#phUrlGo').onclick=()=>{const u=$('#phUrl').value.trim();if(u){$('#phUrl').blur();setPhoto(a.id,u)}};
@@ -636,6 +701,7 @@ function rAuswertung(){
   <section class="aw"><h2>Studiengang</h2>${pair(a=>a.sg||'unklar')}</section>
   <section class="aw"><h2>Semester</h2>${pair(a=>a.sem==null?'?':String(a.sem),true)}</section>
   <section class="aw"><h2>Länge der Motivation <span class="f">Median ${med} Zeichen</span></h2>${bars(lenB,all,['unter 100 Zeichen','100–149 Zeichen','150–199 Zeichen','200 Zeichen und mehr'])}</section>
+  ${Array.isArray(S.infoNames)?`<section class="aw"><h2>Infoveranstaltung</h2>${bars(a=>a.info===true?'teilgenommen':'nicht teilgenommen',all,['teilgenommen','nicht teilgenommen'])}</section>`:''}
   <section class="aw"><h2>Männlich / weiblich</h2>${bars(a=>({w:'weiblich',m:'männlich'})[a.g]||'unklar',all,['weiblich','männlich','unklar'])}</section>`;
 }
 
@@ -672,8 +738,8 @@ function rSettings(){
   $$('[data-unalias]').forEach(b=>b.onclick=()=>{delete S.sgAlias[b.dataset.unalias];save();rSettings()});
   $('#tplReset').onclick=()=>{S.tpl=JSON.parse(JSON.stringify(DEFAULT_TPL));save();rSettings();toast('Standardtexte wiederhergestellt')};
   const stamp=new Date().toISOString().slice(0,10);
-  $('#csv').onclick=()=>download(`${S.kurs}-${stamp}.csv`,csv([['Status','Wartelistenplatz','Vorname','Nachname','E-Mail','Studiengang','Abschluss','Semester','Geschlecht (geschätzt)','Eingang','Mail','Erste Sitzung','Nachrücker','Motivation'],
-    ...['zusage','warte','absage','offen'].flatMap(st=>byStatus(st).map((a,i)=>[SN[st],st==='warte'?i+1:'',a.vn,a.nn,a.email,a.sg,a.abschluss,a.sem??'',a.g,a.date,a.mail||'',a.anwesend===true?'da':a.anwesend===false?'nicht da':'',a.nachruecker?'ja':'',a.mot]))]),'text/csv;charset=utf-8');
+  $('#csv').onclick=()=>download(`${S.kurs}-${stamp}.csv`,csv([['Status','Wartelistenplatz','Vorname','Nachname','E-Mail','Studiengang','Abschluss','Semester','Geschlecht (geschätzt)','Infoveranstaltung','Eingang','Mail','Erste Sitzung','Nachrücker','Motivation'],
+    ...['zusage','warte','absage','offen'].flatMap(st=>byStatus(st).map((a,i)=>[SN[st],st==='warte'?i+1:'',a.vn,a.nn,a.email,a.sg,a.abschluss,a.sem??'',a.g,a.info===true?'ja':a.info===false?'nein':'',a.date,a.mail||'',a.anwesend===true?'da':a.anwesend===false?'nicht da':'',a.nachruecker?'ja':'',a.mot]))]),'text/csv;charset=utf-8');
   $('#json').onclick=()=>download(`${S.kurs}-sicherung-${stamp}.json`,JSON.stringify(S,null,1),'application/json');
   $('#tCopy').onclick=()=>{const v=$('#tLink').value;navigator.clipboard.writeText(v).then(()=>toast('Teamlink kopiert'),()=>{$('#tLink').select();toast('Markiert, mit ⌘C kopieren')})};
   $('#tNew').onclick=async()=>{const b=$('#tNew');if(!b.dataset.c){b.dataset.c=1;b.textContent='Wirklich? Alle müssen den neuen Link bekommen. Nochmal klicken';return}

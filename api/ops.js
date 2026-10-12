@@ -1,4 +1,4 @@
-// Speichert geänderte Bewerbungen und Einstellungen.
+// Speichert geänderte Bewerbungen und Kurseinstellungen.
 'use strict';
 const { sb, send, guard, handler } = require('./_lib');
 
@@ -14,8 +14,10 @@ module.exports = handler(async (req, res) => {
     rows.push({ id: a.id, data: a.deleted ? {} : (a.data && typeof a.data === 'object' ? a.data : {}), deleted: !!a.deleted });
   }
   if (rows.length) await sb('apps?on_conflict=id', { method: 'POST', token, body: rows, prefer: 'resolution=merge-duplicates,return=minimal' });
-  if (b.settings && typeof b.settings === 'object') {
-    await sb('settings?on_conflict=id', { method: 'POST', token, body: [{ id: 1, data: b.settings }], prefer: 'resolution=merge-duplicates,return=minimal' });
+  const cs = b.courseSettings;
+  if (cs && typeof cs === 'object') {
+    if (!/^[a-z0-9_-]{1,32}$/.test(String(cs.course || '')) || !cs.data || typeof cs.data !== 'object') return send(res, 400, { error: 'Ungültige Kurseinstellungen' });
+    await sb('course_settings?on_conflict=course', { method: 'POST', token, body: [{ course: cs.course, data: cs.data }], prefer: 'resolution=merge-duplicates,return=minimal' });
   }
   send(res, 200, { ok: true });
 });

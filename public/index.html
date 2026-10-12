@@ -59,6 +59,12 @@ summary::before{content:"+ "} details[open] summary::before{content:"– "}
 .sc-name{font-size:28px;line-height:1.1;font-weight:500;letter-spacing:-.02em;margin-bottom:6px;text-wrap:balance}
 .sc-meta{color:var(--muted);margin-bottom:28px}
 .sc-mot{font-size:18px;line-height:1.45;margin:0;text-wrap:pretty;white-space:pre-line}
+.sc-mot.long{font-size:15px;line-height:1.55;max-height:42vh;overflow-y:auto;padding-right:6px;cursor:text}
+.scard{cursor:pointer}
+.recs{margin:-10px 0 16px;font-size:13px}
+.docs{margin-top:14px;font-size:13px;line-height:1.7}
+.rd-in.pdf{max-width:980px;padding:16px 18px 18px}
+.pdfv{width:100%;height:80vh;border:1px solid var(--rule);background:#fff}
 .stamp{position:absolute;top:20px;right:20px;border:1px solid;padding:1px 8px;opacity:0;pointer-events:none;background:var(--bg)}
 .sw-btns{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:20px}
 .sw-btns .btn{padding:10px 6px}
@@ -150,7 +156,7 @@ footer{margin-top:60px;color:var(--faint);display:flex;gap:22px}
 </head>
 <body>
 <div class="wrap">
-  <header><span><span class="t" id="hKurs"></span> <span class="m" id="hSem"></span></span><span id="hCount"></span></header>
+  <header><span><span id="hKurs"></span> <span class="m" id="hSem"></span></span><span id="hCount"></span></header>
   <nav id="tabs">
     <button class="link" data-t="import">/import</button>
     <button class="link" data-t="auswahl">/auswahl</button>
@@ -198,11 +204,14 @@ zusage:{s:'Zusage: {kurs}',b:'Hallo {vorname},\n\nvielen Dank für deine Bewerbu
 warte:{s:'Warteliste: {kurs}',b:'Hallo {vorname},\n\nvielen Dank für deine Bewerbung für die „{kurs}". Wir hatten deutlich mehr Bewerbungen als Plätze. Du stehst auf Platz {position} der Warteliste.\n\nSobald ein Platz frei wird, melden wir uns. Das passiert meist nach der ersten Sitzung am {termin}.\n\nViele Grüße\n{absender}'},
 absage:{s:'Deine Bewerbung: {kurs}',b:'Hallo {vorname},\n\nvielen Dank für dein Interesse an der „{kurs}". Leider hatten wir deutlich mehr Bewerbungen als Plätze und können dir diesmal keinen Platz anbieten.\n\nDas Gründungszentrum bietet laufend weitere Formate an. Wir freuen uns, wenn du dich wieder bewirbst.\n\nViele Grüße\n{absender}'},
 nach:{s:'Ein Platz ist frei: {kurs}',b:'Hallo {vorname},\n\nin der „{kurs}" ist ein Platz frei geworden, und du bist als Nächste:r auf der Warteliste dran.\n\nDie nächste Sitzung ist am {termin2} ({ort}). Komm einfach vorbei. Falls du keine Zeit mehr hast, sag uns bitte bis morgen Bescheid.\n\nViele Grüße\n{absender}'}};
-function emptyState(){return{apps:[],sgAlias:{},infoNames:null,demo:false,kurs:'Start-up Challenge',semester:'WiSe 2026/27',plaetze:32,termin:'Mittwoch, 21.10.2026, 18:00 Uhr',termin2:'Mittwoch, 28.10.2026, 18:00 Uhr',ort:'Gründungszentrum',absender:'Team Gründungszentrum',senderAddr:'',tpl:JSON.parse(JSON.stringify(DEFAULT_TPL))}}
+const COURSES={suc:{name:'Start-up Challenge',info:true,letters:false},kanu:{name:'KANU',info:false,letters:true}};
+let COURSE='suc';try{const c=JSON.parse(localStorage.getItem('kursauswahl-ui')||'{}').course;if(COURSES[c])COURSE=c}catch(e){}
+const F=()=>COURSES[COURSE];
+function emptyState(c){c=c||COURSE;return{apps:[],sgAlias:{},infoNames:null,demo:false,kurs:COURSES[c].name,semester:'WiSe 2026/27',plaetze:32,termin:'Mittwoch, 21.10.2026, 18:00 Uhr',termin2:'Mittwoch, 28.10.2026, 18:00 Uhr',ort:'Gründungszentrum',absender:'Team Gründungszentrum',senderAddr:'',tpl:JSON.parse(JSON.stringify(DEFAULT_TPL))}}
 
 /* ---------- server I/O (Team-Betrieb) ---------- */
 let S=null,REV=0,HEALTH={mistral:false},saveTimer=null,saving=false,dirty=false,TOKEN='',EPOCH=null;
-let SHADOW=new Map(),SET_SHADOW='',PHOTOS={},JOBS=[],HELPER=null,SKEW=0,needRender=false,swipeDown=false,lastSig='';
+let OTHER=[],CS={},FILES={},SHADOW=new Map(),SET_SHADOW='',PHOTOS={},JOBS=[],HELPER=null,SKEW=0,needRender=false,swipeDown=false,lastSig='';
 const SETTINGS_KEYS=['kurs','semester','plaetze','termin','termin2','ort','absender','senderAddr','tpl','sgAlias','demo','infoNames'];
 async function api(path,opts={}){
   const r=await fetch(path,{...opts,headers:{'Content-Type':'application/json','X-Team-Token':TOKEN,...(opts.headers||{})}});
@@ -217,35 +226,40 @@ async function flush(){
   if(saving){saveTimer=setTimeout(flush,200);return}
   if(!dirty||!S)return;saving=true;dirty=false;
   const ops=[],ids=new Set();
-  for(const a of S.apps){ids.add(a.id);const j=JSON.stringify(a);if(SHADOW.get(a.id)!==j)ops.push({id:a.id,j})}
+  for(const a of [...S.apps,...OTHER]){ids.add(a.id);const j=JSON.stringify(a);if(SHADOW.get(a.id)!==j)ops.push({id:a.id,j})}
   for(const id of SHADOW.keys())if(!ids.has(id))ops.push({id,del:true});
-  const sj=JSON.stringify(settingsOf(S)),setChanged=sj!==SET_SHADOW;
+  const sj=JSON.stringify(settingsOf(S)),setChanged=sj!==SET_SHADOW,sc=COURSE;
   try{
     for(let i=0;i<ops.length||(i===0&&setChanged);i+=25){
       const chunk=ops.slice(i,i+25);
-      await api('/api/ops',{method:'POST',body:JSON.stringify({apps:chunk.map(o=>o.del?{id:o.id,deleted:true}:{id:o.id,data:JSON.parse(o.j)}),...(i===0&&setChanged?{settings:JSON.parse(sj)}:{})})});
+      await api('/api/ops',{method:'POST',body:JSON.stringify({apps:chunk.map(o=>o.del?{id:o.id,deleted:true}:{id:o.id,data:JSON.parse(o.j)}),...(i===0&&setChanged?{courseSettings:{course:sc,data:JSON.parse(sj)}}:{})})});
       chunk.forEach(o=>{if(o.del)SHADOW.delete(o.id);else SHADOW.set(o.id,o.j)});
     }
-    if(setChanged)SET_SHADOW=sj;
+    if(setChanged){CS[sc]=JSON.parse(sj);if(sc===COURSE)SET_SHADOW=sj}
     $('#offline').hidden=true;
   }catch(e){if(e.status!==401){$('#offline').hidden=false;dirty=true;saveTimer=setTimeout(flush,3000)}}
   finally{saving=false}
 }
 window.addEventListener('beforeunload',e=>{if(dirty||saving){flush();e.preventDefault();e.returnValue=''}});
-function normalize(d){const s={...emptyState(),...(d||{})};s.tpl={...JSON.parse(JSON.stringify(DEFAULT_TPL)),...(s.tpl||{})};s.sgAlias=s.sgAlias||{};s.apps=(s.apps||[]).map(a=>({...blank(),...a,sg:canonSg(a.sg,s.sgAlias)}));return s}
-function normApp(data,id){return{...blank(),...(data||{}),id,sg:canonSg((data||{}).sg,S?S.sgAlias:{})}}
+function normalize(d,c){const s={...emptyState(c),...(d||{})};s.tpl={...JSON.parse(JSON.stringify(DEFAULT_TPL)),...(s.tpl||{})};s.sgAlias=s.sgAlias||{};s.apps=(s.apps||[]).map(a=>({...blank(),...a,sg:canonSg(a.sg,s.sgAlias)}));return s}
+function normApp(data,id){return{...blank(),...(data||{}),id,course:(data||{}).course||'suc',sg:canonSg((data||{}).sg,S?S.sgAlias:{})}}
+const filesOf=id=>Object.values(FILES).filter(f=>f.app_id===id&&!f.deleted);
+const recCount=a=>filesOf(a.id).filter(f=>f.kind==='empfehlung').length;
 const pending=a=>SHADOW.get(a.id)!==JSON.stringify(a);
 function applyRemote(j,full){
   let changed=false;
-  if(j.settings){const d=j.settings.data||{};
+  for(const row of j.courses||[]){const d=row.data||{};CS[row.course]=d;
+    if(row.course!==COURSE)continue;
     if(!full&&d.epoch&&d.epoch!==EPOCH){location.reload();return false}
     EPOCH=d.epoch||EPOCH;
-    if(full||JSON.stringify(settingsOf(S))===SET_SHADOW){const n=normalize(d);SETTINGS_KEYS.forEach(k=>S[k]=n[k]);SET_SHADOW=JSON.stringify(settingsOf(S));changed=true}
+    if(full||JSON.stringify(settingsOf(S))===SET_SHADOW){const n=normalize(d,COURSE);SETTINGS_KEYS.forEach(k=>S[k]=n[k]);SET_SHADOW=JSON.stringify(settingsOf(S));changed=true}
   }
-  for(const row of j.apps||[]){const i=S.apps.findIndex(a=>a.id===row.id);
-    if(row.deleted){const pd=i>=0&&pending(S.apps[i]);if(i>=0&&!pd){S.apps.splice(i,1);changed=true}if(!pd)SHADOW.delete(row.id);continue}
-    if(i>=0&&pending(S.apps[i]))continue;
-    const a=normApp(row.data,row.id);if(i>=0)S.apps[i]=a;else S.apps.push(a);SHADOW.set(row.id,JSON.stringify(a));changed=true}
+  for(const row of j.apps||[]){
+    let arr=S.apps,i=arr.findIndex(a=>a.id===row.id);if(i<0){arr=OTHER;i=arr.findIndex(a=>a.id===row.id)}
+    if(row.deleted){const pd=i>=0&&pending(arr[i]);if(i>=0&&!pd){arr.splice(i,1);changed=true}if(!pd)SHADOW.delete(row.id);continue}
+    if(i>=0&&pending(arr[i]))continue;
+    const a=normApp(row.data,row.id);if(i>=0)arr.splice(i,1);(a.course===COURSE?S.apps:OTHER).push(a);SHADOW.set(row.id,JSON.stringify(a));changed=true}
+  for(const f of j.files||[]){if(f.deleted)delete FILES[f.id];else FILES[f.id]=f;changed=true}
   for(const p of j.photos||[]){PHOTOS[p.id]=p.has?p.rev:0;changed=true}
   JOBS=j.jobs||[];HELPER=j.helperSeen||null;if(j.now)SKEW=Date.parse(j.now)-Date.now();
   if(j.rev>REV)REV=j.rev;
@@ -264,6 +278,10 @@ function softRender(){if(interacting()){needRender=true;return}needRender=false;
 document.addEventListener('focusout',()=>setTimeout(()=>{if(needRender)softRender()},60));
 document.addEventListener('pointerup',()=>setTimeout(()=>{if(needRender)softRender()},300));
 const helperOnline=()=>!!HELPER&&(Date.now()+SKEW-Date.parse(HELPER))<30000;
+async function switchCourse(c){if(!COURSES[c]||c===COURSE)return;await flush();
+  OTHER=OTHER.concat(S.apps);S.apps=OTHER.filter(a=>a.course===c);OTHER=OTHER.filter(a=>a.course!==c);COURSE=c;
+  const n=normalize(CS[c]||{},c);SETTINGS_KEYS.forEach(k=>S[k]=n[k]);EPOCH=(CS[c]||{}).epoch||null;SET_SHADOW=JSON.stringify(settingsOf(S));
+  sel=null;mailSel=null;hist=[];infoReview=null;lastImport=null;saveUi();render()}
 function noAccess(msg){TOKEN='';try{localStorage.removeItem('kursauswahl-token')}catch(e){}
   $('#tabs').hidden=true;$('#hCount').innerHTML='';$('#layer').innerHTML='';
   $('#main').innerHTML=`<div class="col1"><p>${esc(msg||'Kein Zugang.')}</p><p class="m">Öffne den Teamlink, den du bekommen hast. Er sieht so aus: <span class="f">${esc(location.origin)}/#k=…</span></p></div>`}
@@ -294,7 +312,7 @@ function imageFrom(dt){
   const uri=dt.getData&&((dt.getData('text/uri-list')||dt.getData('text/plain')||'').trim().split(/\s+/)[0]);
   if(uri&&/^(https:\/\/|data:image\/)/.test(uri))return uri;return null}
 function photoTarget(){if(sel)return sel;if(tab==='import')return null;if(tab==='auswahl'&&sub==='durchgang'){const q=S.apps.filter(a=>a.status==='offen'&&!a.seen).sort((a,b)=>a.order-b.order);return q[0]&&q[0].id}return null}
-document.addEventListener('paste',e=>{if(!sel&&tab==='import'&&$('#infoDrop')){const f=[...((e.clipboardData&&e.clipboardData.files)||[])].filter(x=>/^image\//.test(x.type));if(f.length){e.preventDefault();readAttendeeShots(f)}return}const id=photoTarget();if(!id)return;const ae=document.activeElement;
+document.addEventListener('paste',e=>{if(!sel&&tab==='import'&&F().info&&$('#infoDrop')){const f=[...((e.clipboardData&&e.clipboardData.files)||[])].filter(x=>/^image\//.test(x.type));if(f.length){e.preventDefault();readAttendeeShots(f)}return}const id=photoTarget();if(!id)return;const ae=document.activeElement;
   const img=imageFrom(e.clipboardData);if(!img)return;if(typeof img==='string'&&ae&&/INPUT|TEXTAREA/.test(ae.tagName))return;
   e.preventDefault();setPhoto(id,img)});
 function wirePhotoDrop(el,id){if(!el)return;
@@ -317,10 +335,10 @@ function toast(m,ms=2200){const t=document.createElement('div');t.className='toa
 const P=()=>Number(S.plaetze)||0;
 let tab='import',sub='durchgang',sel=null,mailSel=null,hist=[],lastImport=null,busy=false;
 try{const v=JSON.parse(localStorage.getItem('kursauswahl-ui')||'{}');if(v.tab)tab=v.tab;if(v.sub)sub=v.sub}catch(e){}
-function saveUi(){try{localStorage.setItem('kursauswahl-ui',JSON.stringify({tab,sub}))}catch(e){}}
+function saveUi(){try{localStorage.setItem('kursauswahl-ui',JSON.stringify({tab,sub,course:COURSE}))}catch(e){}}
 
 function header(){
-  const z=byStatus('zusage').length;$('#hKurs').textContent=S.kurs;$('#hSem').textContent=S.semester+(S.demo?' · Beispieldaten':'');
+  const z=byStatus('zusage').length;$('#hKurs').innerHTML=Object.keys(COURSES).map(c=>`<button class="link ${c===COURSE?'t':'m'}" data-c="${c}">${esc(c===COURSE?S.kurs:((CS[c]&&CS[c].kurs)||COURSES[c].name))}</button>`).join('<span class="f"> / </span>');$$('#hKurs [data-c]').forEach(b=>b.onclick=()=>switchCourse(b.dataset.c));$('#hSem').textContent=S.semester+(S.demo?' · Beispieldaten':'');
   $('#hCount').innerHTML=S.apps.length?`<span class="${z>P()?'bad':''}">${z}</span><span class="m"> / ${P()}</span>`:'';
   $$('#tabs button').forEach(b=>b.setAttribute('aria-current',b.dataset.t===tab));
 }
@@ -343,9 +361,11 @@ function parseMsg(raw){
   const fname=words(((H['content-disposition']||'').match(/filename\*?="?([^";]+)"?/i)||(ct.match(/name\*?="?([^";]+)"?/i))||[])[1]||'');
   if(/multipart\//i.test(ct)){const b=(ct.match(/boundary="?([^";]+)"?/i)||[])[1];if(!b)return{H,text:'',kind:'',att:[]};
     const parts=body.split('--'+b).slice(1).filter(p=>!/^--/.test(p)).map(p=>parseMsg(p.replace(/^\r?\n/,'')));
-    const att=parts.flatMap(p=>p.att||[]);
-    const t=parts.find(p=>p.kind==='plain'&&p.text.trim())||parts.find(p=>p.text&&p.text.trim());return{H,text:t?t.text:'',kind:t?t.kind:'',att}}
-  if(/attachment/i.test(H['content-disposition']||'')||(fname&&!/^text\/(plain|html)/i.test(ct)))return{H,text:'',kind:'',att:[fname||'Anhang']};
+    const att=parts.flatMap(p=>p.att||[]),pdfs=parts.flatMap(p=>p.pdfs||[]);
+    const t=parts.find(p=>p.kind==='plain'&&p.text.trim())||parts.find(p=>p.text&&p.text.trim());return{H,text:t?t.text:'',kind:t?t.kind:'',att,pdfs}}
+  if(/attachment/i.test(H['content-disposition']||'')||(fname&&!/^text\/(plain|html)/i.test(ct))){
+    let pdf=null;if(/application\/(pdf|octet-stream)/i.test(ct)||/\.pdf$/i.test(fname)){const b=cte==='base64'?body.replace(/[^A-Za-z0-9+/=]/g,''):btoa(cte==='quoted-printable'?qp(body):body);if(/^JVBER/.test(b))pdf={name:fname||'anhang.pdf',b64:b}}
+    return{H,text:'',kind:'',att:[fname||'Anhang'],pdfs:pdf?[pdf]:[]}}
   let s=cte==='base64'?(()=>{try{return atob(body.replace(/\s/g,''))}catch(e){return''}})():cte==='quoted-printable'?qp(body):body;
   s=dec(s,(ct.match(/charset="?([^";\s]+)"?/i)||[])[1]);
   if(/text\/html/i.test(ct)){s=new DOMParser().parseFromString(s.replace(/<br\s*\/?>/gi,'\n').replace(/<\/(p|div)>/gi,'\n\n'),'text/html').body.textContent||'';return{H,text:s.replace(/\n{3,}/g,'\n\n'),kind:'html',att:[]}}
@@ -356,7 +376,7 @@ function stripQuoted(t){return t.split(/\r?\n/).filter(l=>!/^\s*>/.test(l)).join
 function toMail(raw){
   const m=parseMsg(raw);const from=words(m.H.from||'');const email=((from.match(/<([^>]+)>/)||[])[1]||(from.match(/[\w.+-]+@[\w.-]+/)||[''])[0]).toLowerCase().trim();
   const fromName=from.replace(/<[^>]*>/,'').replace(/"/g,'').trim();const dt=new Date(m.H.date||'');
-  return{from,fromName,email,to:words(m.H.to||''),full:String(m.text||'').replace(/\r\n/g,'\n').trim(),att:m.att||[],subject:words(m.H.subject||''),date:isNaN(dt)?new Date().toISOString().slice(0,10):dt.toISOString().slice(0,10),dateRaw:m.H.date||'',text:stripQuoted(m.text||'')};
+  return{from,fromName,email,to:words(m.H.to||''),full:String(m.text||'').replace(/\r\n/g,'\n').trim(),att:m.att||[],pdfs:m.pdfs||[],subject:words(m.H.subject||''),date:isNaN(dt)?new Date().toISOString().slice(0,10):dt.toISOString().slice(0,10),dateRaw:m.H.date||'',text:stripQuoted(m.text||'')};
 }
 function splitFiles(name,raw){
   const nm=name.toLowerCase();if(nm.endsWith('.emlx'))raw=raw.replace(/^\d+\s*\r?\n/,'');
@@ -385,7 +405,7 @@ function buildApp(mail,x,viaAI){
   [...new Set((x.unsicher||[]).map(f=>FIELD[f]).filter(Boolean))].forEach(f=>{if(!flags.some(g=>g.startsWith(f)))flags.push(f+' unsicher')});
   if(!viaAI)flags.push('ohne KI ausgelesen');
   const g=x.geschlecht==='w'||x.geschlecht==='m'?x.geschlecht:guessGender(x.vorname);
-  return{...blank(),id:'a'+Date.now().toString(36)+Math.random().toString(36).slice(2,7),vn:x.vorname||'',nn:x.nachname||'',email:mail.email,
+  return{...blank(),course:COURSE,id:'a'+Date.now().toString(36)+Math.random().toString(36).slice(2,7),vn:x.vorname||'',nn:x.nachname||'',email:mail.email,
     sg:canonSg(x.studiengang),abschluss:x.abschluss||'',sem:x.semester,g,mot:x.motivation||'',date:mail.date,order:S.apps.length,flags,
     raw:'',mailText:mail.text,mailFull:mail.full||mail.text,mailTo:mail.to||'',mailDate:mail.dateRaw||'',att:mail.att||[],mailFrom:mail.from,mailSubject:mail.subject};
 }
@@ -394,15 +414,39 @@ async function extract(mail){
     catch(e){return{x:ruleExtract(mail.text,mail.fromName),ai:false,err:e.message}}}
   return{x:ruleExtract(mail.text,mail.fromName),ai:false};
 }
+const KIND_LABEL={motivation:'Motivationsschreiben',empfehlung:'Empfehlungsschreiben',lebenslauf:'Lebenslauf',zeugnis:'Zeugnis',sonstiges:'Dokument'};
+const rid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+function authorOf(f){const v=f&&f.meta&&f.meta.verfasser;if(!v||!v.name)return'';return v.name+(v.funktion||v.organisation?` (${[v.funktion,v.organisation].filter(Boolean).join(', ')})`:'')}
+async function addPdf(app,name,b64){
+  if(b64.length>4300000)throw new Error(`${name} ist größer als 3 MB`);
+  const id='f'+rid();await api('/api/files',{method:'POST',body:JSON.stringify({id,app_id:app.id,name,b64})});
+  FILES[id]={id,app_id:app.id,name,kind:'sonstiges',size:Math.round(b64.length*.75),meta:{}};
+  if(HEALTH.mistral){const r=await api('/api/analyze',{method:'POST',body:JSON.stringify({id,applicant:((app.vn||'')+' '+(app.nn||'')).trim()})});FILES[id].kind=r.kind;FILES[id].meta=r.meta}
+  return FILES[id];
+}
+async function processDocs(app,mail){
+  let motText='';
+  for(const f of mail.pdfs||[]){try{const r=await addPdf(app,f.name,f.b64);if(r.kind==='motivation'&&!motText)motText=(r.meta&&r.meta.text)||''}catch(e){if(e.status===401)return'';app.flags.push(`Anhang ${f.name}: ${e.message}`)}}
+  return motText;
+}
+async function applyLetter(app,mail,motText){
+  if(!motText){app.flags=app.flags.filter(f=>!/^Motivation/.test(f));app.flags.push('Motivationsschreiben fehlt');return}
+  app.mot=motText.trim();app.flags=app.flags.filter(f=>!/^Motivation/.test(f));
+  if((!app.sg||!app.abschluss||app.sem==null)&&HEALTH.mistral){try{const x=await api('/api/extract',{method:'POST',body:JSON.stringify({text:mail.text+'\n\nMotivationsschreiben:\n'+motText.slice(0,8000),from:mail.from,subject:mail.subject,studiengaenge:sgNames()})});
+    if(!app.sg&&x.studiengang){app.sg=canonSg(x.studiengang);app.flags=app.flags.filter(f=>f!=='Studiengang fehlt')}
+    if(!app.abschluss&&x.abschluss){app.abschluss=x.abschluss;app.flags=app.flags.filter(f=>f!=='Abschluss fehlt')}
+    if(app.sem==null&&x.semester!=null){app.sem=x.semester;app.flags=app.flags.filter(f=>f!=='Semester fehlt')}}catch(e){}}
+}
 async function importMails(mails){
   if(busy)return;busy=true;
   const stats={n:0,dup:0,check:0,skip:0,err:null};const seen=new Set(S.apps.map(a=>a.email).filter(Boolean));
   const todo=[];for(const m of mails){if(m.email&&seen.has(m.email)){const ex=S.apps.find(a=>a.email===m.email);if(ex&&!ex.mailFull){Object.assign(ex,{mailFull:m.full,mailText:m.text,mailTo:m.to,mailDate:m.dateRaw,att:m.att,mailFrom:m.from,mailSubject:m.subject})}stats.dup++;continue}if(m.email)seen.add(m.email);todo.push(m)}
-  let done=0;const prog=()=>{const d=$('#drop');if(d){d.classList.add('busy');d.innerHTML=`Lese aus … ${done} / ${todo.length}<br><span class="m">${HEALTH.mistral?'mit Mistral':'mit Regeln'}</span>`}};prog();
+  let done=0;const prog=()=>{const d=$('#drop');if(d){d.classList.add('busy');d.innerHTML=`Lese aus … ${done} / ${todo.length}<br><span class="m">${HEALTH.mistral?'mit Mistral':'mit Regeln'}${F().letters?', inklusive PDF-Anhängen':''}</span>`}};prog();
   const out=new Array(todo.length);let idx=0;
-  async function worker(){while(idx<todo.length){const i=idx++;const r=await extract(todo[i]);if(r.err&&!stats.err)stats.err=r.err;out[i]=buildApp(todo[i],r.x,r.ai);done++;prog()}}
+  async function worker(){while(idx<todo.length){const i=idx++;const r=await extract(todo[i]);if(r.err&&!stats.err)stats.err=r.err;const a=buildApp(todo[i],r.x,r.ai);
+    if(F().letters){const mt=await processDocs(a,todo[i]);await applyLetter(a,todo[i],mt)}out[i]=a;done++;prog()}}
   await Promise.all([worker(),worker(),worker()]);
-  out.forEach(a=>{if(Array.isArray(S.infoNames)&&S.infoNames.length){a.info=bestMatch(a,S.infoNames).score===2}a.order=S.apps.length;S.apps.push(a);stats.n++;if(a.flags.length)stats.check++});
+  out.forEach(a=>{if(F().info&&Array.isArray(S.infoNames)&&S.infoNames.length){a.info=bestMatch(a,S.infoNames).score===2}a.order=S.apps.length;S.apps.push(a);stats.n++;if(a.flags.length)stats.check++});
   busy=false;save();lastImport=stats;render();
 }
 async function importFiles(files){
@@ -533,19 +577,19 @@ function rImport(){
   ${!HEALTH.mistral?`<p class="notice">Kein Mistral-Key hinterlegt. Ausgelesen wird mit einfachen Regeln, bitte jede Bewerbung prüfen.</p>`:''}
   <div class="drop" id="drop" tabindex="0" role="button">Mails hier ablegen<br><span class="m">.eml, .emlx oder exportiertes Postfach (.mbox)</span></div>
   <input type="file" id="file" multiple hidden>
-  <p class="howto">Apple Mail: Ordner mit den Bewerbungen auswählen, <b>Postfach › Postfach exportieren …</b>, den exportierten Ordner hier ablegen. Oder Mails markieren und direkt hierher ziehen. Bereits importierte Absender werden übersprungen. Die Mails werden im Browser gelesen, nur der Text geht zum Auslesen an Mistral.</p>
+  <p class="howto">${F().letters?'PDF-Anhänge (Motivations- und Empfehlungsschreiben) werden automatisch übernommen und ausgelesen. ':''}Apple Mail: Ordner mit den Bewerbungen auswählen, <b>Postfach › Postfach exportieren …</b>, den exportierten Ordner hier ablegen. Oder Mails markieren und direkt hierher ziehen. Bereits importierte Absender werden übersprungen. Die Mails werden im Browser gelesen, nur der Text geht zum Auslesen an Mistral.</p>
   ${lastImport?`<p style="margin:-14px 0 26px">${lastImport.n} importiert${lastImport.dup?` · ${lastImport.dup} schon vorhanden`:''}${lastImport.check?` · <span class="bad">${lastImport.check} prüfen</span>`:''}${lastImport.skip?` · ${lastImport.skip} Dateien ignoriert`:''}${lastImport.err?`<br><span class="bad">Mistral-Fehler: ${esc(lastImport.err)}</span>`:''}</p>`:''}
   <details><summary>Mailtext einfügen</summary><textarea id="raw" style="min-height:140px;margin-top:10px" placeholder="Absender und Text der Mail hier einfügen"></textarea><div style="margin-top:8px"><button class="btn" id="addRaw">Übernehmen</button></div></details>
   ${S.apps.length?`<div style="display:flex;justify-content:space-between;margin-bottom:6px"><span>${S.apps.length} Bewerbungen</span><span class="${flagged.length?'bad':'m'}">${flagged.length?flagged.length+' prüfen':'alles geprüft'}</span></div>
   <div class="list">${list.map(a=>`<div class="li" data-id="${a.id}"><span class="m">${d6(a.date)}</span><span class="x">${photoTag(a.id,'th')}${fullName(a)} <span class="m">${meta(a)} · ${a.g}</span> ${infoBadge(a)}</span><span class="tag ${a.flags.length?'bad':''}">${a.flags.length?esc(a.flags[0])+(a.flags.length>1?' +'+(a.flags.length-1):''):''}</span></div>`).join('')}</div>`
-  :`<p class="m">Noch keine Bewerbungen. <button class="link u" id="demo">Mit Beispieldaten ausprobieren</button></p>`}${infoSection()}</div>`;
+  :`<p class="m">Noch keine Bewerbungen. <button class="link u" id="demo">Mit Beispieldaten ausprobieren</button></p>`}${F().info?infoSection():''}</div>`;
   const dz=$('#drop');
   dz.onclick=()=>{if(!busy)$('#file').click()};dz.onkeydown=e=>{if(e.key==='Enter'&&!busy)$('#file').click()};
   $('#file').onchange=e=>importFiles([...e.target.files]);
   dz.ondragover=e=>{e.preventDefault();dz.classList.add('over')};dz.ondragleave=()=>dz.classList.remove('over');
   dz.ondrop=async e=>{e.preventDefault();dz.classList.remove('over');if(busy)return;const f=await filesFromDrop(e.dataTransfer);if(f.length)importFiles(f);else toast('Keine Dateien erkannt. Mails erst in einen Finder-Ordner ziehen und von dort ablegen.',4000)};
   $('#addRaw').onclick=()=>{const v=$('#raw').value.trim();if(!v)return;const raw=/^[\w-]+:/.test(v)&&/\r?\n\r?\n/.test(v)?v:'Subject: Bewerbung\n\n'+v;importMails([toMail(raw)])};
-  wireInfoSection();
+  if(F().info)wireInfoSection();
   if($('#demo'))$('#demo').onclick=()=>{const d=demoApps();S.apps=d;S.demo=true;save();render()};
   if($('#clearDemo'))$('#clearDemo').onclick=()=>{S.apps=[];S.demo=false;hist=[];save();render()};
   $$('.li').forEach(r=>r.onclick=()=>{sel=r.dataset.id;rSheet()});
@@ -568,7 +612,9 @@ function rSwipe(){
    ${a?`<div class="stack">${q[1]?'<div class="scard back"></div>':''}<div class="scard" id="sc">
      <span class="stamp" id="stamp"></span>
      <div class="sc-head"><div class="sc-ph" id="scPh" title="Foto hierher ziehen oder mit ⌘V einfügen">${PHOTOS[a.id]?photoTag(a.id,'fill'):'<span>Foto</span>'}</div><div><div class="sc-name">${fullName(a)}</div>${a.info===true?'<div class="info big">war bei der Infoveranstaltung</div>':''}<div class="sc-meta">${esc(a.sg||'Studiengang unklar')} · ${esc(a.abschluss||'?')} · ${a.sem??'?'}. Semester</div></div></div>
-     <p class="sc-mot">${esc(a.mot)||'<span class="m">Keine Motivation erkannt.</span>'}</p>
+     ${F().letters&&recCount(a)?`<p class="recs">${recCount(a)} Empfehlungsschreiben${filesOf(a.id).filter(f=>f.kind==='empfehlung'&&authorOf(f)).length?': '+filesOf(a.id).filter(f=>f.kind==='empfehlung').map(f=>esc(authorOf(f)||'unbekannt')).join(' · '):''}</p>`:''}
+     <p class="sc-mot${F().letters?' long':''}">${esc(a.mot)||`<span class="m">${F().letters?'Kein Motivationsschreiben erkannt.':'Keine Motivation erkannt.'}</span>`}</p>
+     ${docsLine(a)}
      ${a.flags.length?`<p class="bad" style="margin:18px 0 0">${a.flags.map(esc).join(', ')}</p>`:''}</div></div>
    <div class="sw-btns"><button class="btn" data-d="nein">Nein<kbd>←</kbd></button><button class="btn" data-d="spaeter">Später<kbd>↓</kbd></button><button class="btn solid" data-d="ja">Ja<kbd>→</kbd></button></div>`
    :`<p style="margin-top:20px">Durchgang fertig. ${ja} ja für ${P()} Plätze, ${sp} zum nochmal Ansehen.</p><button class="btn solid" id="toBoard">Weiter zum Board</button>`}
@@ -582,10 +628,10 @@ function rSwipe(){
   $$('.sw-btns .btn').forEach(b=>b.onclick=()=>decide(b.dataset.d));
   wirePhotoDrop($('#sc'),a.id);
   const c=$('#sc'),st=$('#stamp');let x0=null,y0=0,dx=0,dy=0;
-  c.onpointerdown=e=>{swipeDown=true;x0=e.clientX;y0=e.clientY;c.setPointerCapture(e.pointerId);c.style.transition='none'};
+  let tgt=null;c.onpointerdown=e=>{tgt=e.target;if(e.target.closest('button,a,.sc-mot.long,.sc-ph')){x0=null;return}swipeDown=true;x0=e.clientX;y0=e.clientY;c.setPointerCapture(e.pointerId);c.style.transition='none'};
   c.onpointermove=e=>{if(x0===null)return;dx=e.clientX-x0;dy=e.clientY-y0;c.style.transform=`translate(${dx}px,${dy*.3}px) rotate(${dx/20}deg)`;
     const w=Math.abs(dx)>=60?(dx>0?'ja':'nein'):dy>40?'später':'';st.textContent=w;st.className='stamp'+(w==='nein'?' bad':'');st.style.opacity=w?Math.min(1,Math.max(Math.abs(dx),dy)/110):0};
-  c.onpointerup=c.onpointercancel=()=>{swipeDown=false;if(x0===null)return;x0=null;c.style.transition='';
+  c.onpointerup=c.onpointercancel=ev=>{swipeDown=false;if(x0===null)return;if(ev.type==='pointerup'&&Math.abs(dx)<6&&Math.abs(dy)<6&&!(tgt&&tgt.closest('button,a'))){x0=null;c.style.transition='';c.style.transform='';sel=a.id;rSheet();return}x0=null;c.style.transition='';
     if(dx>110)decide('ja');else if(dx<-110)decide('nein');else if(dy>110&&Math.abs(dx)<60)decide('spaeter');else{c.style.transform='';st.style.opacity=0}dx=dy=0};
 }
 function decide(d){
@@ -598,7 +644,7 @@ function undo(){const h=hist.pop();if(!h)return;const a=S.apps.find(x=>x.id===h.
   S.apps.filter(x=>x.status==='offen'&&!x.seen).sort((x,y)=>x.order-y.order).forEach((x,i)=>x.order=i);save();header();rAuswahl()}
 function mixLine(){const z=byStatus('zusage');const c=f=>{const m={};z.forEach(a=>{const v=f(a);m[v]=(m[v]||0)+1});return m};
   const ab=c(a=>a.abschluss||'?'),g=c(a=>a.g),top=Object.entries(c(a=>sgS(a.sg))).sort((a,b)=>b[1]-a[1]).slice(0,4);
-  const inf=z.filter(a=>a.info===true).length;return `<div class="mix"><span>Zusagen</span>${Array.isArray(S.infoNames)?`<span><b>${inf}</b> mit Info</span>`:''}<span><b>${ab.Bachelor||0}</b> B <b>${ab.Master||0}</b> M</span><span><b>${g.w||0}</b> w <b>${g.m||0}</b> m <b>${g['?']||0}</b> ?</span><span>${top.map(([k,v])=>`${esc(k)} <b>${v}</b>`).join('  ')}</span></div>`}
+  const inf=z.filter(a=>a.info===true).length;return `<div class="mix"><span>Zusagen</span>${F().info&&Array.isArray(S.infoNames)?`<span><b>${inf}</b> mit Info</span>`:''}${F().letters?`<span><b>${z.filter(a=>recCount(a)).length}</b> mit Empfehlung</span>`:''}<span><b>${ab.Bachelor||0}</b> B <b>${ab.Master||0}</b> M</span><span><b>${g.w||0}</b> w <b>${g.m||0}</b> m <b>${g['?']||0}</b> ?</span><span>${top.map(([k,v])=>`${esc(k)} <b>${v}</b>`).join('  ')}</span></div>`}
 function rBoard(){
   const cols=[['offen','nochmal ansehen'],['zusage','zusage'],['warte','warteliste'],['absage','absage']];
   const unseen=S.apps.filter(a=>a.status==='offen'&&!a.seen).length;
@@ -609,7 +655,7 @@ function rBoard(){
   if($('#goSw'))$('#goSw').onclick=()=>{sub='durchgang';saveUi();rAuswahl()};
   wireDnD();
 }
-function card(a,pos,full){return `<div class="card" draggable="true" data-id="${a.id}" tabindex="0"><div class="top"><span class="nm">${pos?`<span class="m">${pos}&nbsp;&nbsp;</span>`:''}${photoTag(a.id,'th')}${fullName(a)}</span><span class="mt">${infoBadge(a)} ${meta(a)}</span></div>${full?`<div class="mot">${esc(a.mot)}</div>`:''}</div>`}
+function card(a,pos,full){return `<div class="card" draggable="true" data-id="${a.id}" tabindex="0"><div class="top"><span class="nm">${pos?`<span class="m">${pos}&nbsp;&nbsp;</span>`:''}${photoTag(a.id,'th')}${fullName(a)}</span><span class="mt">${infoBadge(a)}${F().letters&&recCount(a)?`<span class="info">${recCount(a)} Empf.</span> `:''} ${meta(a)}</span></div>${full?`<div class="mot">${esc(a.mot)}</div>`:''}</div>`}
 let dragId=null;
 function wireDnD(){
   $$('.card').forEach(c=>{c.ondragstart=e=>{dragId=c.dataset.id;c.classList.add('dragging');e.dataTransfer.effectAllowed='move';try{e.dataTransfer.setData('text/plain',dragId)}catch(_){}};
@@ -623,6 +669,19 @@ const before=(b,y)=>[...b.querySelectorAll('.card:not(.dragging)')].find(c=>{con
 function move(id,col,beforeId){const a=S.apps.find(x=>x.id===id);if(!a)return;
   const l=byStatus(col).filter(x=>x.id!==id);let i=beforeId?l.findIndex(x=>x.id===beforeId):l.length;if(i<0)i=l.length;l.splice(i,0,a);
   a.seen=true;if(a.status!==col){a.status=col;a.mail=null;a.anwesend=null;if(col!=='zusage')a.nachruecker=false}l.forEach((x,k)=>x.order=k);save();render()}
+
+/* ---------- PDF-Ansicht ---------- */
+async function openPdf(id){const f=FILES[id];if(!f)return;const L=$('#reader');
+  L.innerHTML=`<div class="rd" role="dialog" aria-label="Dokument" tabindex="-1"><div class="rd-in pdf"><div class="rd-top"><span>${esc(KIND_LABEL[f.kind]||'Dokument')}${authorOf(f)?' <span class="m">von '+esc(authorOf(f))+'</span>':''}</span><span style="display:flex;gap:16px"><a class="link u" id="pdfTab" target="_blank" rel="noopener" hidden>in neuem Tab öffnen</a><button class="link" id="rdClose">schließen</button></span></div><p class="m">Lädt …</p></div></div>`;
+  const close=()=>{L.innerHTML='';document.removeEventListener('keydown',k,true)};const k=e=>{if(e.key==='Escape'){e.stopPropagation();e.preventDefault();close()}};document.addEventListener('keydown',k,true);
+  $('#rdClose').onclick=close;L.querySelector('.rd').onclick=e=>{if(e.target.classList.contains('rd'))close()};
+  try{const r=await fetch('/api/files?id='+encodeURIComponent(id),{headers:{'X-Team-Token':TOKEN}});if(!r.ok)throw new Error('Dokument nicht abrufbar');
+    const url=URL.createObjectURL(new Blob([await r.arrayBuffer()],{type:'application/pdf'}));const box=L.querySelector('.rd-in');if(!box)return;
+    box.querySelector('p').outerHTML=`<iframe class="pdfv" src="${url}" title="${esc(f.name)}"></iframe>`;const a=$('#pdfTab');a.href=url;a.hidden=false}
+  catch(e){const p=L.querySelector('.rd-in p');if(p)p.textContent=e.message}}
+function docsLine(a){const fs=filesOf(a.id);if(!fs.length)return'';const order={motivation:0,empfehlung:1,lebenslauf:2,zeugnis:3,sonstiges:4};
+  return `<div class="docs">${fs.sort((x,y)=>order[x.kind]-order[y.kind]).map(f=>`<button class="link u" data-pdf="${f.id}">${esc(f.kind==='empfehlung'&&authorOf(f)?'Empfehlung: '+authorOf(f):KIND_LABEL[f.kind]||'Dokument')}</button>`).join('<span class="f"> · </span>')}</div>`}
+document.addEventListener('click',e=>{const o=e.target.closest&&e.target.closest('[data-open]');if(o){e.preventDefault();sel=o.dataset.open;rSheet();return}const b=e.target.closest&&e.target.closest('[data-pdf]');if(b){e.preventDefault();e.stopPropagation();openPdf(b.dataset.pdf)}},true);
 
 /* ---------- original mail reader ---------- */
 function openMail(id){const a=S.apps.find(x=>x.id===id);if(!a)return;
@@ -649,7 +708,7 @@ function rSheet(){
   <div class="fields" style="margin-top:14px">
     <div><label for="eVn">Vorname</label><input id="eVn" value="${esc(a.vn)}"></div><div><label for="eNn">Nachname</label><input id="eNn" value="${esc(a.nn)}"></div>
     <div class="full"><label for="eEm">E-Mail</label><input id="eEm" value="${esc(a.email)}"></div></div>
-  <p style="margin-top:12px"><label style="display:inline;color:var(--fg)"><input type="checkbox" id="eInfo" style="width:auto;margin-right:8px" ${a.info===true?'checked':''}>bei der Infoveranstaltung</label></p>
+  ${F().info?`<p style="margin-top:12px"><label style="display:inline;color:var(--fg)"><input type="checkbox" id="eInfo" style="width:auto;margin-right:8px" ${a.info===true?'checked':''}>bei der Infoveranstaltung</label></p>`:''}
   <div class="st">${Object.keys(SN).map(s=>`<button class="link ${a.status===s?'on':''}" data-s="${s}">${SN[s]}</button>`).join('')}</div>
   <div class="fields">
     <div class="full"><label for="eSg">Studiengang</label><input id="eSg" list="sgList" value="${esc(a.sg)}"><datalist id="sgList">${sgs.map(s=>`<option value="${esc(s)}">`).join('')}</datalist></div>
@@ -659,11 +718,19 @@ function rSheet(){
     <div class="full"><label for="eMot">Motivation</label><textarea id="eMot" style="min-height:100px">${esc(a.mot)}</textarea></div>
   </div>
   ${a.flags.length?`<p class="bad">${a.flags.map(esc).join(', ')} <button class="link u" id="ok" style="color:var(--fg);margin-left:8px">geprüft</button></p>`:''}
+  ${F().letters||filesOf(a.id).length?`<div class="sec" style="padding-block:12px 4px"><h2>Dokumente</h2>${filesOf(a.id).map(f=>`<div class="att"><span><button class="link u" data-pdf="${f.id}">${esc(KIND_LABEL[f.kind]||'Dokument')}</button> <span class="m">${esc(authorOf(f)?'von '+authorOf(f):f.name)}</span></span><span style="display:flex;gap:10px;align-items:center"><select data-kind="${f.id}" style="width:auto;color:var(--muted);font-size:13px">${Object.entries(KIND_LABEL).map(([k,l])=>`<option value="${k}" ${f.kind===k?'selected':''}>${l}</option>`).join('')}</select><button class="link m" data-delf="${f.id}">×</button></span></div>`).join('')||'<p class="m">Keine Dokumente.</p>'}
+   <p style="margin-top:10px"><button class="link u" id="addPdf">PDF hinzufügen</button><input type="file" id="pdfFile" accept="application/pdf,.pdf" multiple hidden></p></div>`:''}
   <div style="display:flex;flex-wrap:wrap;gap:18px;margin:14px 0 6px"><button class="link u" id="openMail">originalmail lesen</button>${HEALTH.mistral&&a.mailText?`<button class="link u" id="reex">neu auslesen</button>`:''}<button class="link u bad" id="del">Bewerbung löschen</button></div>
   </aside>`;
   const close=()=>{sel=null;render()};
   $('#openMail').onclick=()=>openMail(a.id);
-  $('#eInfo').onchange=e=>{a.info=e.target.checked;a.infoManual=true;save();header()};
+  if($('#addPdf')){$('#addPdf').onclick=()=>$('#pdfFile').click();$('#pdfFile').onchange=async e=>{for(const file of e.target.files){toast(`${file.name} wird gelesen …`,2500);
+      try{const b64=await new Promise((res,rej)=>{const fr=new FileReader();fr.onload=()=>res(String(fr.result).split(',')[1]);fr.onerror=()=>rej(new Error('Datei nicht lesbar'));fr.readAsDataURL(file)});
+        const f=await addPdf(a,file.name,b64);if(f.kind==='motivation'&&(!a.mot||F().letters)){a.mot=(f.meta.text||a.mot||'').trim();a.flags=a.flags.filter(x=>!/^Motivation/.test(x));save()}toast(`${file.name}: ${KIND_LABEL[f.kind]}`)}
+      catch(err){if(err.status!==401)toast(`${file.name}: ${err.message}`,6000)}}rSheet();softRender()}}
+  $$('[data-kind]').forEach(s=>s.onchange=async()=>{const f=FILES[s.dataset.kind];f.kind=s.value;try{await api('/api/files',{method:'PATCH',body:JSON.stringify({id:f.id,kind:s.value})})}catch(e){toast(e.message)}rSheet()});
+  $$('[data-delf]').forEach(b=>b.onclick=async()=>{if(!b.dataset.c){b.dataset.c=1;b.textContent='löschen?';return}try{await api('/api/files?id='+encodeURIComponent(b.dataset.delf),{method:'DELETE'});delete FILES[b.dataset.delf];rSheet()}catch(e){toast(e.message)}});
+  if($('#eInfo'))$('#eInfo').onchange=e=>{a.info=e.target.checked;a.infoManual=true;save();header()};
   wirePhotoDrop($('#phBox'),a.id);$('#phBox').onclick=()=>$('#phFile').click();$('#phBox').onkeydown=e=>{if(e.key==='Enter')$('#phFile').click()};
   $('#phFile').onchange=e=>{const f=e.target.files[0];if(f)setPhoto(a.id,f)};
   $('#phUrlGo').onclick=()=>{const u=$('#phUrl').value.trim();if(u){$('#phUrl').blur();setPhoto(a.id,u)}};
@@ -702,7 +769,7 @@ function rMails(){
     ${l.map((a,i)=>`<div class="rc ${a.id===mailSel?'on':''}" data-id="${a.id}"><span>${k==='warte'?`<span class="m">${i+1}&nbsp;&nbsp;</span>`:''}${fullName(a)}</span><span class="${a.email?'m':'bad'}">${a.email?mailState(a):'keine Adresse'}</span></div>`).join('')}</div>`};
   const a=S.apps.find(x=>x.id===mailSel);let prev='<p class="m">Noch niemand entschieden.</p>';
   if(a){const t=S.tpl[typeOf(a)];prev=`<div class="hdr"><span>an</span><span>${esc(a.email)||'<span class="bad">keine Adresse</span>'}</span><span>betreff</span><span id="pSub">${esc(fill(t.s,a))}</span></div><pre id="pBody">${esc(fill(t.b,a))}</pre>
-    <div class="actions">${a.email?`<button class="btn ${a.mail?'':'solid'}" id="draft">${a.mail==='entwurf'?'Nochmal als Entwurf':'Entwurf in Apple Mail'}</button>`:''}<button class="btn" id="cpy">Text kopieren</button><button class="btn" id="sent">${a.mail==='versendet'?'Zurück auf offen':'Als versendet markieren'}</button></div>`}
+    <p style="margin:-6px 0 14px"><button class="link u m" data-open="${a.id}">Detailansicht öffnen</button></p><div class="actions">${a.email?`<button class="btn ${a.mail?'':'solid'}" id="draft">${a.mail==='entwurf'?'Nochmal als Entwurf':'Entwurf in Apple Mail'}</button>`:''}<button class="btn" id="cpy">Text kopieren</button><button class="btn" id="sent">${a.mail==='versendet'?'Zurück auf offen':'Als versendet markieren'}</button></div>`}
   $('#main').innerHTML=`${off.length?`<p class="notice">${off.length} noch nicht entschieden, bekommen keine Mail.</p>`:''}${noAddr?`<p class="notice bad">${noAddr} ohne E-Mail-Adresse. Im Import nachtragen.</p>`:''}${helperOnline()?'<p class="m">Mail-Helfer verbunden.</p>':'<p class="notice">Mail-Helfer nicht verbunden. Beauftragte Entwürfe entstehen, sobald er auf dem Mac läuft.</p>'}${JOBS.some(j=>j.status==='fehler')?`<p class="notice bad">${JOBS.filter(j=>j.status==='fehler').length} Entwürfe fehlgeschlagen: ${esc((JOBS.find(j=>j.status==='fehler')||{}).error||'')}. Erneut beauftragen über die Vorschau.</p>`:''}
   <div class="mailgrid"><div>${grp('nachrücker',nr,'nach')}${grp('zusage',z,'zusage')}${grp('warteliste',w,'warte')}${grp('absage',ab,'absage')}
   <p class="f">Texte und Absender unter /einstellungen.</p></div><div><div class="preview">${prev}</div></div></div>`;
@@ -722,7 +789,7 @@ function rSitzung(){
   const da=z.filter(a=>a.anwesend===true).length;
   $('#main').innerHTML=`<div class="col1"><p class="m">${esc(S.termin)} · ${da} da · ${miss.length} nicht da · ${z.length-da-miss.length} offen</p>
   ${miss.length?`<p class="notice">${miss.length} ${miss.length>1?'Plätze':'Platz'} frei. ${w.length?`Nächste auf der Warteliste: ${w.slice(0,miss.length).map(fullName).join(', ')}. <button class="btn solid" id="nach" style="margin-left:6px">Nachrücken lassen</button>`:'Warteliste ist leer.'}</p>`:''}
-  <div class="list" style="margin-top:18px">${z.map(a=>`<div class="att"><span>${photoTag(a.id,'th lg')}${fullName(a)}</span><span class="seg" data-id="${a.id}"><button class="${a.anwesend===true?'on':''}" data-v="1">da</button><button class="n ${a.anwesend===false?'on':''}" data-v="0">nicht da</button></span></div>`).join('')||'<p class="m" style="padding-top:10px">Noch keine Zusagen.</p>'}</div>
+  <div class="list" style="margin-top:18px">${z.map(a=>`<div class="att"><span><button class="link" data-open="${a.id}">${photoTag(a.id,'th lg')}${fullName(a)}</button></span><span class="seg" data-id="${a.id}"><button class="${a.anwesend===true?'on':''}" data-v="1">da</button><button class="n ${a.anwesend===false?'on':''}" data-v="0">nicht da</button></span></div>`).join('')||'<p class="m" style="padding-top:10px">Noch keine Zusagen.</p>'}</div>
   ${nr.length?`<p class="m" style="margin-top:26px">Nachgerückt: ${nr.map(fullName).join(', ')}. Mails unter /mails.</p>`:''}</div>`;
   $$('.seg').forEach(sg=>sg.querySelectorAll('button').forEach(b=>b.onclick=()=>{const p=S.apps.find(x=>x.id===sg.dataset.id),v=b.dataset.v==='1';p.anwesend=p.anwesend===v?null:v;save();rSitzung()}));
   if($('#nach'))$('#nach').onclick=()=>{let n=0;miss.forEach(m=>{const nx=byStatus('warte')[0];if(!nx)return;m.status='absage';m.ersetzt=true;m.order=999;nx.status='zusage';nx.nachruecker=true;nx.mail=null;nx.order=byStatus('zusage').length;n++});
@@ -733,7 +800,7 @@ function rSitzung(){
 function rAuswertung(){
   const all=S.apps,z=byStatus('zusage'),w=byStatus('warte').length,ab=byStatus('absage').length,of=byStatus('offen').length;
   const BA=a=>a.abschluss==='Bachelor',MA=a=>a.abschluss==='Master';
-  const lenB=a=>{const n=(a.mot||'').length;return n<100?'unter 100 Zeichen':n<150?'100–149 Zeichen':n<200?'150–199 Zeichen':'200 Zeichen und mehr'};
+  const lenB=F().letters?(a=>{const w=(a.mot||'').trim().split(/\s+/).filter(Boolean).length;return !w?'kein Schreiben':w<250?'unter 250 Wörter':w<400?'250–399 Wörter':'400 Wörter und mehr'}):(a=>{const n=(a.mot||'').length;return n<100?'unter 100 Zeichen':n<150?'100–149 Zeichen':n<200?'150–199 Zeichen':'200 Zeichen und mehr'});
   const bars=(f,list,order,sortNum)=>{const c=new Map(),cz=new Map();list.forEach(a=>{const k=f(a);c.set(k,(c.get(k)||0)+1);if(a.status==='zusage')cz.set(k,(cz.get(k)||0)+1)});
     let keys=[...c.keys()];keys=order?order.filter(k=>c.has(k)).concat(keys.filter(k=>!order.includes(k))):sortNum?keys.sort((x,y)=>(x==='?')-(y==='?')||x-y):keys.sort((x,y)=>c.get(y)-c.get(x));
     if(!keys.length)return '<p class="m">Keine Bewerbungen.</p>';const max=Math.max(...keys.map(k=>c.get(k)));
@@ -746,8 +813,9 @@ function rAuswertung(){
   <section class="aw"><h2>Bachelor / Master</h2>${bars(a=>a.abschluss||'unklar',all,['Bachelor','Master','unklar'])}</section>
   <section class="aw"><h2>Studiengang</h2>${pair(a=>a.sg||'unklar')}</section>
   <section class="aw"><h2>Semester</h2>${pair(a=>a.sem==null?'?':String(a.sem),true)}</section>
-  <section class="aw"><h2>Länge der Motivation <span class="f">Median ${med} Zeichen</span></h2>${bars(lenB,all,['unter 100 Zeichen','100–149 Zeichen','150–199 Zeichen','200 Zeichen und mehr'])}</section>
-  ${Array.isArray(S.infoNames)?`<section class="aw"><h2>Infoveranstaltung</h2>${bars(a=>a.info===true?'teilgenommen':'nicht teilgenommen',all,['teilgenommen','nicht teilgenommen'])}</section>`:''}
+  <section class="aw"><h2>Länge ${F().letters?'des Motivationsschreibens':'der Motivation'} <span class="f">Median ${F().letters?Math.round(med/6.5)+' Wörter':med+' Zeichen'}</span></h2>${bars(lenB,all,F().letters?['kein Schreiben','unter 250 Wörter','250–399 Wörter','400 Wörter und mehr']:['unter 100 Zeichen','100–149 Zeichen','150–199 Zeichen','200 Zeichen und mehr'])}</section>
+  ${F().letters?`<section class="aw"><h2>Empfehlungsschreiben</h2>${bars(a=>{const n=recCount(a);return n===0?'keines':n===1?'eines':'zwei oder mehr'},all,['keines','eines','zwei oder mehr'])}</section>`:''}
+  ${F().info&&Array.isArray(S.infoNames)?`<section class="aw"><h2>Infoveranstaltung</h2>${bars(a=>a.info===true?'teilgenommen':'nicht teilgenommen',all,['teilgenommen','nicht teilgenommen'])}</section>`:''}
   <section class="aw"><h2>Männlich / weiblich</h2>${bars(a=>({w:'weiblich',m:'männlich'})[a.g]||'unklar',all,['weiblich','männlich','unklar'])}</section>`;
 }
 
@@ -774,7 +842,7 @@ function rSettings(){
   <section class="sec"><h2>Daten</h2>
    <p class="m">Bewerbungen und Fotos liegen in einer Datenbank in Frankfurt (Supabase). Zugriff nur mit dem Teamlink.</p>
    <div class="actions" style="margin-bottom:22px"><button class="btn" id="csv">Liste als CSV</button><button class="btn" id="json">Sicherung als JSON</button><button class="btn" id="restore">Sicherung einspielen</button><input type="file" id="restoreF" accept="application/json,.json" hidden><button class="btn" id="newRound">Neue Runde beginnen</button></div>
-   <p class="m">Nach Abschluss des Kurses sollten die Bewerberdaten gelöscht werden. Das entfernt alle Bewerbungen, Fotos und Mail-Aufträge für das ganze Team.</p>
+   <p class="m">Nach Abschluss des Kurses sollten die Bewerberdaten gelöscht werden. Das entfernt alle Bewerbungen dieses Kurses (${esc(S.kurs)}) mit Fotos, Dokumenten und Mail-Aufträgen für das ganze Team. Der andere Kurs bleibt unberührt.</p>
    <div style="display:flex;gap:10px;align-items:end;max-width:420px"><div style="flex:1"><label for="wipeC">Zum Löschen LÖSCHEN eintippen</label><input id="wipeC" autocomplete="off"></div><button class="btn" id="wipe" style="border-color:var(--bad);color:var(--bad)">Alle Daten löschen</button></div>
   </section></div>`;
   $$('#main input[data-k]').forEach(i=>i.onchange=()=>{S[i.dataset.k]=i.type==='number'?Math.max(1,parseInt(i.value)||1):i.value.trim();save();header()});
@@ -784,8 +852,8 @@ function rSettings(){
   $$('[data-unalias]').forEach(b=>b.onclick=()=>{delete S.sgAlias[b.dataset.unalias];save();rSettings()});
   $('#tplReset').onclick=()=>{S.tpl=JSON.parse(JSON.stringify(DEFAULT_TPL));save();rSettings();toast('Standardtexte wiederhergestellt')};
   const stamp=new Date().toISOString().slice(0,10);
-  $('#csv').onclick=()=>download(`${S.kurs}-${stamp}.csv`,csv([['Status','Wartelistenplatz','Vorname','Nachname','E-Mail','Studiengang','Abschluss','Semester','Geschlecht (geschätzt)','Infoveranstaltung','Eingang','Mail','Erste Sitzung','Nachrücker','Motivation'],
-    ...['zusage','warte','absage','offen'].flatMap(st=>byStatus(st).map((a,i)=>[SN[st],st==='warte'?i+1:'',a.vn,a.nn,a.email,a.sg,a.abschluss,a.sem??'',a.g,a.info===true?'ja':a.info===false?'nein':'',a.date,a.mail||'',a.anwesend===true?'da':a.anwesend===false?'nicht da':'',a.nachruecker?'ja':'',a.mot]))]),'text/csv;charset=utf-8');
+  $('#csv').onclick=()=>download(`${S.kurs}-${stamp}.csv`,csv([['Status','Wartelistenplatz','Vorname','Nachname','E-Mail','Studiengang','Abschluss','Semester','Geschlecht (geschätzt)','Infoveranstaltung','Empfehlungen','Eingang','Mail','Erste Sitzung','Nachrücker','Motivation'],
+    ...['zusage','warte','absage','offen'].flatMap(st=>byStatus(st).map((a,i)=>[SN[st],st==='warte'?i+1:'',a.vn,a.nn,a.email,a.sg,a.abschluss,a.sem??'',a.g,a.info===true?'ja':a.info===false?'nein':'',filesOf(a.id).filter(f=>f.kind==='empfehlung').map(f=>authorOf(f)||f.name).join(' | '),a.date,a.mail||'',a.anwesend===true?'da':a.anwesend===false?'nicht da':'',a.nachruecker?'ja':'',a.mot]))]),'text/csv;charset=utf-8');
   $('#json').onclick=()=>download(`${S.kurs}-sicherung-${stamp}.json`,JSON.stringify(S,null,1),'application/json');
   $('#tCopy').onclick=()=>{const v=$('#tLink').value;navigator.clipboard.writeText(v).then(()=>toast('Teamlink kopiert'),()=>{$('#tLink').select();toast('Markiert, mit ⌘C kopieren')})};
   $('#tNew').onclick=async()=>{const b=$('#tNew');if(!b.dataset.c){b.dataset.c=1;b.textContent='Wirklich? Alle müssen den neuen Link bekommen. Nochmal klicken';return}
@@ -793,9 +861,9 @@ function rSettings(){
   $('#restore').onclick=()=>$('#restoreF').click();
   $('#restoreF').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const d=JSON.parse(await f.text());const apps=Array.isArray(d.apps)?d.apps:Array.isArray(d)?d:null;if(!apps)throw new Error('Keine Bewerbungen in der Datei');
     const have=new Set(S.apps.map(a=>a.id)),mails=new Set(S.apps.map(a=>a.email).filter(Boolean));let n=0;
-    apps.forEach(a=>{if(!a||!a.id||have.has(a.id)||(a.email&&mails.has(a.email)))return;S.apps.push(normApp(a,String(a.id).replace(/[^\w-]/g,'').slice(0,64)||('r'+Date.now()+n)));n++});
+    apps.forEach(a=>{if(!a||!a.id||have.has(a.id)||(a.email&&mails.has(a.email)))return;S.apps.push(normApp({...a,course:COURSE},String(a.id).replace(/[^\w-]/g,'').slice(0,64)||('r'+Date.now()+n)));n++});
     if(d.sgAlias)S.sgAlias={...d.sgAlias,...S.sgAlias};save();rSettings();toast(`${n} Bewerbungen eingespielt`)}catch(err){toast('Sicherung nicht lesbar: '+err.message,6000)}};
-  const wipeAll=async()=>{clearTimeout(saveTimer);dirty=false;await api('/api/wipe',{method:'POST',body:JSON.stringify({confirm:'LÖSCHEN'})});try{localStorage.setItem('kursauswahl-ui',JSON.stringify({tab:'import',sub:'durchgang'}))}catch(e){}location.reload()};
+  const wipeAll=async()=>{clearTimeout(saveTimer);dirty=false;await api('/api/wipe',{method:'POST',body:JSON.stringify({confirm:'LÖSCHEN',course:COURSE})});try{localStorage.setItem('kursauswahl-ui',JSON.stringify({tab:'import',sub:'durchgang',course:COURSE}))}catch(e){}location.reload()};
   $('#newRound').onclick=async()=>{const b=$('#newRound');if(!b.dataset.c){b.dataset.c=1;b.textContent='Alle Bewerbungen für alle entfernen? Nochmal klicken';return}
     download(`${S.kurs}-sicherung-${stamp}.json`,JSON.stringify(S,null,1),'application/json');try{await wipeAll()}catch(e){if(e.status!==401)toast(e.message)}};
   $('#wipe').onclick=async()=>{if($('#wipeC').value!=='LÖSCHEN'){toast('Bitte LÖSCHEN eintippen');return}try{await wipeAll()}catch(e){if(e.status!==401)toast(e.message)}};
@@ -810,7 +878,7 @@ function demoApps(){
   const out=[],used=new Set();
   for(let i=0;i<50;i++){let vn,nn;do{const x=r();vn=x<.47?pick(FEM.slice(0,24)):x<.92?pick(MAL.slice(0,24)):pick(AMB.slice(0,6));nn=pick(NACH)}while(used.has(vn+nn));used.add(vn+nn);
     const master=r()<.38,sem=master?1+Math.floor(r()*4):1+Math.floor(r()*8),sg=pick(SG),mot=pick(MOT);
-    out.push({...blank(),id:'d'+i,vn,nn,email:`${vn}.${nn}@beispiel.invalid`.toLowerCase().replace(/[^a-z.@]/g,''),sg,abschluss:master?'Master':'Bachelor',sem,g:guessGender(vn),mot,date:`2026-10-${String(1+Math.floor(r()*10)).padStart(2,'0')}`,order:i,mailFrom:`${vn} ${nn}`,mailSubject:'Bewerbung Start-up Challenge',mailFull:`Hallo liebes Team,\n\nich heiße ${vn} ${nn} und studiere ${sg} im ${sem}. Semester (${master?'Master':'Bachelor'}).\n\nMotivation: ${mot}\n\nViele Grüße\n${vn}\n\n(Beispieldaten)`})}
+    out.push({...blank(),course:COURSE,id:COURSE+'d'+i,vn,nn,email:`${vn}.${nn}@beispiel.invalid`.toLowerCase().replace(/[^a-z.@]/g,''),sg,abschluss:master?'Master':'Bachelor',sem,g:guessGender(vn),mot,date:`2026-10-${String(1+Math.floor(r()*10)).padStart(2,'0')}`,order:i,mailFrom:`${vn} ${nn}`,mailSubject:'Bewerbung Start-up Challenge',mailFull:`Hallo liebes Team,\n\nich heiße ${vn} ${nn} und studiere ${sg} im ${sem}. Semester (${master?'Master':'Bachelor'}).\n\nMotivation: ${mot}\n\nViele Grüße\n${vn}\n\n(Beispieldaten)`})}
   return out;
 }
 
@@ -820,7 +888,7 @@ function demoApps(){
   if(m){TOKEN=m[1];try{localStorage.setItem('kursauswahl-token',TOKEN)}catch(e){}history.replaceState(null,'',location.pathname)}
   else{try{TOKEN=localStorage.getItem('kursauswahl-token')||''}catch(e){}}
   if(!TOKEN){noAccess();return}
-  try{HEALTH=await api('/api/health');S=emptyState();applyRemote(await api('/api/sync?since=0'),true);S.apps.forEach(a=>SHADOW.set(a.id,JSON.stringify(a)))}
+  try{HEALTH=await api('/api/health');S=emptyState();SET_SHADOW=JSON.stringify(settingsOf(S));applyRemote(await api('/api/sync?since=0'),true)}
   catch(e){if(e.status!==401)$('#main').innerHTML='<p class="bad">Server nicht erreichbar. Bitte die Seite neu laden.</p>';return}
   if(!S.apps.length&&tab!=='einstellungen')tab='import';
   render();

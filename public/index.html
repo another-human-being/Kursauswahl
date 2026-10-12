@@ -1,0 +1,597 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kursauswahl Gründungszentrum</title>
+<style>
+/* Layout: a single text column, slash-path navigation, dated rows; monochrome, red only for problems. */
+:root{
+  --bg:#ffffff; --fg:#000000; --muted:#7a7a7a; --faint:#b3b3b3; --rule:#e6e6e6; --hover:#f4f4f4; --bad:#d0021b; --s1:#000000;
+  --font:"Helvetica Neue",Helvetica,Arial,"Liberation Sans",sans-serif;
+}
+@media (prefers-color-scheme:dark){:root{--bg:#000000;--fg:#ffffff;--muted:#8c8c8c;--faint:#555555;--rule:#222222;--hover:#111111;--bad:#ff5a5f;--s1:#ffffff;color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--font);font-size:14px;line-height:1.45;padding-inline:20px;padding-block:0 60px;font-variant-numeric:tabular-nums}
+.wrap{max-width:1180px;margin:0 auto}
+.col1{max-width:720px}
+button.link{color:inherit;text-decoration:none;background:none;border:0;padding:0;font:inherit;cursor:pointer}
+button.link:hover{text-decoration:underline;text-underline-offset:3px}
+.u{text-decoration:underline;text-underline-offset:3px}
+.m{color:var(--muted)} .f{color:var(--faint)} .bad{color:var(--bad)}
+:focus-visible{outline:1px solid var(--fg);outline-offset:3px}
+header{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding-block:22px 0}
+header .t{font-weight:500}
+nav{display:flex;flex-wrap:wrap;gap:4px 22px;padding-block:6px 30px}
+nav button{color:var(--muted)} nav button[aria-current="true"]{color:var(--fg)}
+nav .sp{flex:1}
+.sub{display:flex;flex-wrap:wrap;gap:4px 18px;margin-bottom:26px}
+.sub button{color:var(--muted)} .sub button[aria-current="true"]{color:var(--fg)}
+p{margin:0 0 12px}
+h2{font-size:14px;font-weight:500;margin:0 0 14px}
+.btn{font:inherit;border:1px solid var(--fg);background:var(--bg);color:var(--fg);padding:5px 12px;cursor:pointer}
+.btn:hover{background:var(--fg);color:var(--bg)}
+.btn.solid{background:var(--fg);color:var(--bg)} .btn.solid:hover{opacity:.85}
+.btn:disabled{opacity:.3;cursor:default;background:var(--bg);color:var(--fg)}
+input,textarea,select{font:inherit;color:var(--fg);background:var(--bg);border:0;border-bottom:1px solid var(--rule);padding:5px 0;width:100%;border-radius:0}
+textarea{border:1px solid var(--rule);padding:8px;resize:vertical}
+input:focus,textarea:focus,select:focus{outline:0;border-color:var(--fg)}
+label{display:block;color:var(--muted);margin-bottom:2px}
+.list{border-top:1px solid var(--rule)}
+.li{display:grid;grid-template-columns:5.2rem minmax(0,1fr) auto;gap:12px;padding:7px 4px;border-bottom:1px solid var(--rule);cursor:pointer;align-items:baseline}
+.li:hover{background:var(--hover)}
+.li .x{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tag{color:var(--muted);white-space:nowrap} .tag.bad{color:var(--bad)}
+.drop{border:1px solid var(--fg);padding:34px 20px;text-align:center;margin-bottom:10px;cursor:pointer}
+.drop.over{background:var(--fg);color:var(--bg)} .drop.over .m{color:var(--bg)}
+.drop.busy{cursor:progress}
+.howto{color:var(--muted);margin-bottom:28px} .howto b{color:var(--fg);font-weight:400}
+details{margin-bottom:28px}
+summary{cursor:pointer;color:var(--muted);list-style:none}
+summary::-webkit-details-marker{display:none}
+summary::before{content:"+ "} details[open] summary::before{content:"– "}
+.swipe{max-width:480px}
+.sw-top{display:flex;justify-content:space-between;color:var(--muted);margin-bottom:6px}
+.bar{height:1px;background:var(--rule);margin-bottom:26px}.bar span{display:block;height:1px;background:var(--fg)}
+.stack{position:relative;isolation:isolate}
+.scard{position:relative;background:var(--bg);border:1px solid var(--fg);padding:24px 22px;min-height:290px;touch-action:none;cursor:grab;transition:transform .2s}
+.scard.back{position:absolute;inset:0;transform:translate(6px,6px);border-color:var(--rule);cursor:default;z-index:-1}
+.sc-name{font-size:28px;line-height:1.1;font-weight:500;letter-spacing:-.02em;margin-bottom:6px;text-wrap:balance}
+.sc-meta{color:var(--muted);margin-bottom:28px}
+.sc-mot{font-size:18px;line-height:1.45;margin:0;text-wrap:pretty;white-space:pre-line}
+.stamp{position:absolute;top:20px;right:20px;border:1px solid;padding:1px 8px;opacity:0;pointer-events:none;background:var(--bg)}
+.sw-btns{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:20px}
+.sw-btns .btn{padding:10px 6px}
+kbd{font:inherit;color:var(--faint);margin-left:6px}
+.btn:hover kbd{color:inherit}
+.sw-foot{display:flex;justify-content:space-between;margin-top:14px;min-height:22px}
+.boardscroll{overflow-x:auto;margin-inline:-20px;padding-inline:20px}
+.board{display:grid;grid-template-columns:repeat(4,minmax(240px,1fr));gap:22px;min-width:1000px}
+.colhead{display:flex;justify-content:space-between;padding-bottom:6px;border-bottom:1px solid var(--fg);margin-bottom:6px}
+.colbody{min-height:260px;padding-bottom:40px}
+.colbody.drop2{background:var(--hover)}
+.card{padding:7px 4px;border-bottom:1px solid var(--rule);cursor:grab;user-select:none}
+.card:hover{background:var(--hover)}
+.card.dragging{opacity:.3}
+.card.ins{box-shadow:0 -1px 0 var(--fg)}
+.card .top{display:flex;justify-content:space-between;gap:8px}
+.card .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card .mt{color:var(--muted);font-size:13px;white-space:nowrap}
+.card .mot{font-size:13px;margin-top:4px}
+.mix{color:var(--muted);margin-bottom:22px;display:flex;flex-wrap:wrap;gap:4px 20px}
+.mix b{color:var(--fg);font-weight:400}
+.kpi{display:flex;flex-wrap:wrap;gap:10px 34px;margin-bottom:26px;color:var(--muted)}
+.kpi b{display:block;font-size:26px;font-weight:400;color:var(--fg);letter-spacing:-.02em;line-height:1.1}
+.kpi b.bad{color:var(--bad)}
+.leg{display:flex;flex-wrap:wrap;gap:4px 18px;color:var(--muted);margin-bottom:16px}
+.leg i{display:inline-block;width:10px;height:10px;margin-right:6px;vertical-align:-1px}
+.aw{padding-block:22px 18px;border-top:1px solid var(--fg)}
+.aw h3{font-size:14px;font-weight:400;color:var(--muted);margin:0 0 10px}
+.pair{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px 56px}
+.row{display:grid;grid-template-columns:minmax(0,10rem) minmax(0,1fr) 3.6rem;gap:10px;align-items:center;margin-bottom:5px}
+.row .lbl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.track{position:relative;height:9px}
+.track .all{position:absolute;inset:0 auto 0 0;background:var(--rule)}
+.track .sel{position:absolute;inset:0 auto 0 0;background:var(--fg)}
+.row .n{text-align:right;color:var(--muted)} .row .n b{color:var(--fg);font-weight:400}
+.mailgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:40px}
+@media (max-width:820px){.mailgrid{grid-template-columns:1fr}}
+.group{margin-bottom:26px}
+.gh{display:flex;justify-content:space-between;gap:10px;padding-bottom:6px;border-bottom:1px solid var(--fg)}
+.gh .acts{display:flex;gap:16px}
+.rc{display:flex;justify-content:space-between;gap:10px;padding:6px 4px;border-bottom:1px solid var(--rule);cursor:pointer}
+.rc:hover,.rc.on{background:var(--hover)}
+.preview{position:sticky;top:14px}
+.hdr{display:grid;grid-template-columns:4.5rem 1fr;gap:2px 10px;padding-bottom:12px;margin-bottom:14px;border-bottom:1px solid var(--rule)}
+.hdr span:nth-child(odd){color:var(--muted)} .hdr span{overflow-wrap:anywhere}
+.preview pre{font:inherit;white-space:pre-wrap;margin:0 0 18px;line-height:1.55}
+.actions{display:flex;flex-wrap:wrap;gap:8px}
+.settings{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px 22px}
+.sec{border-top:1px solid var(--fg);padding-block:18px 26px}
+.sec textarea{min-height:170px;margin:4px 0 14px}
+.att{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;padding:6px 4px;border-bottom:1px solid var(--rule);align-items:center}
+.seg button{font:inherit;background:none;border:0;color:var(--faint);cursor:pointer;padding:0 0 0 14px}
+.seg button.on{color:var(--fg)} .seg button.on.n{color:var(--bad)}
+.notice{border-left:1px solid var(--fg);padding:2px 0 2px 12px;margin:0 0 22px}
+.notice.bad{border-color:var(--bad)}
+.scrim{position:fixed;inset:0;background:var(--bg);opacity:.6}
+.sheet{position:fixed;top:0;right:0;bottom:0;width:min(460px,100%);background:var(--bg);border-left:1px solid var(--fg);padding:22px;overflow-y:auto}
+.sheet .nm{font-size:22px;font-weight:500;letter-spacing:-.01em}
+.fields{display:grid;grid-template-columns:1fr 1fr;gap:14px 16px;margin:22px 0}
+.fields .full{grid-column:1/-1}
+.rd{position:fixed;inset:0;background:color-mix(in srgb,var(--bg) 70%,transparent);z-index:15;overflow-y:auto;padding:28px 20px}
+.rd-in{max-width:760px;margin:0 auto;background:var(--bg);border:1px solid var(--fg);padding:22px 26px 30px}
+.rd-top{display:flex;justify-content:space-between;margin-bottom:16px}
+.rd-body{white-space:pre-wrap;font-size:15px;line-height:1.6;overflow-wrap:anywhere}
+.st{display:flex;flex-wrap:wrap;gap:4px 16px;margin-top:10px}
+.st button{color:var(--faint)} .st button.on{color:var(--fg)}
+.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:6px 14px;max-width:90vw;z-index:10}
+#offline{position:fixed;top:0;left:0;right:0;background:var(--bad);color:#fff;padding:6px 20px;z-index:20}
+footer{margin-top:60px;color:var(--faint);display:flex;gap:22px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header><span><span class="t" id="hKurs"></span> <span class="m" id="hSem"></span></span><span id="hCount"></span></header>
+  <nav id="tabs">
+    <button class="link" data-t="import">/import</button>
+    <button class="link" data-t="auswahl">/auswahl</button>
+    <button class="link" data-t="mails">/mails</button>
+    <button class="link" data-t="sitzung">/erste-sitzung</button>
+    <button class="link" data-t="auswertung">/auswertung</button>
+    <span class="sp"></span>
+    <button class="link" data-t="einstellungen">/einstellungen</button>
+  </nav>
+  <main id="main"><p class="m">Lädt …</p></main>
+</div>
+<div id="layer"></div>
+<div id="reader"></div>
+<div id="offline" hidden>Keine Verbindung zum lokalen Server. Änderungen werden nicht gespeichert. Läuft das Startfenster noch?</div>
+
+<script>
+'use strict';
+/* ---------- constants ---------- */
+const SHORT={'Wirtschaftsinformatik':'WiInf','Global Business Management':'GBM','Medien und Kommunikation':'MuK','Wirtschaftsingenieurwesen':'WiIng','Rechtswissenschaft':'Jura','Materialwissenschaft':'MaWi','Sozialwissenschaften':'SoWi','Betriebswirtschaftslehre':'BWL','Volkswirtschaftslehre':'VWL'};
+const KNOWN_SG=['BWL','VWL','Wirtschaftsinformatik','Informatik','Global Business Management','Medien und Kommunikation','Wirtschaftsingenieurwesen','Rechtswissenschaft','Data Science','Physik','Materialwissenschaft','Sozialwissenschaften','Mathematik','Geographie','Psychologie','Lehramt','Wirtschaftsmathematik','Ingenieurinformatik','Medizin','Sportwissenschaft','Politikwissenschaft','Soziologie'];
+// Schreibweisen, die als derselbe Studiengang gelten (Kleinschreibung). Eigene Regeln kommen aus /einstellungen dazu.
+const SG_ALIAS={'betriebswirtschaftslehre':'BWL','betriebswirtschaft':'BWL','business administration':'BWL','bwl':'BWL',
+  'volkswirtschaftslehre':'VWL','volkswirtschaft':'VWL','economics':'VWL','vwl':'VWL',
+  'gbm':'Global Business Management','global business management':'Global Business Management',
+  'wirtschaftsinf.':'Wirtschaftsinformatik','information systems':'Wirtschaftsinformatik',
+  'jura':'Rechtswissenschaft','rechtswissenschaften':'Rechtswissenschaft','jus':'Rechtswissenschaft',
+  'wiing':'Wirtschaftsingenieurwesen','wirtschaftsingenieurswesen':'Wirtschaftsingenieurwesen',
+  'muk':'Medien und Kommunikation','medien & kommunikation':'Medien und Kommunikation'};
+function sgNames(){return[...new Set([...KNOWN_SG,...Object.values(S.sgAlias||{}),...S.apps.map(a=>a.sg).filter(Boolean)])].slice(0,80)}
+function canonSg(raw,user){
+  let s=String(raw||'').replace(/\s+/g,' ').trim();if(!s)return'';
+  s=s.replace(/\s*\((?:b|m)\.?\s?(?:sc|a|ed|eng)\.?\)\s*$/i,'').replace(/\s*[,(-]?\s*(?:(?:b|m)\.\s?(?:sc|a|ed|eng)\.?|bachelor|master)\s*\)?\s*$/i,'').replace(/^(?:(?:b|m)\.\s?(?:sc|a)\.?|bachelor|master)\s+(?:of\s+\w+\s+)?(?:in\s+)?/i,'').trim();
+  const k=s.toLowerCase(),u=user||(S&&S.sgAlias)||{};
+  if(u[k])return u[k];if(SG_ALIAS[k])return SG_ALIAS[k];
+  const known=KNOWN_SG.find(x=>x.toLowerCase()===k);if(known)return known;
+  const ex=S&&S.apps?S.apps.map(a=>a.sg).find(x=>x&&x.toLowerCase()===k):null;
+  return ex||s;
+}
+const FEM=['Anna','Lea','Sophie','Marie','Laura','Julia','Hannah','Lena','Mia','Clara','Paula','Emma','Katharina','Selin','Aylin','Elif','Jana','Johanna','Nina','Sarah','Lisa','Amira','Valentina','Theresa','Sophia','Leonie','Lara','Franziska','Christina','Maria','Elena','Sara','Vanessa','Jasmin','Melanie','Carina','Verena','Magdalena','Alina','Antonia','Helena','Isabel','Charlotte','Luisa','Emily','Zoe','Nele','Svenja','Annika','Miriam'];
+const MAL=['Lukas','Jonas','Felix','Maximilian','Paul','Leon','Tim','David','Moritz','Simon','Elias','Niklas','Jakob','Tobias','Emre','Mehmet','Marco','Fabian','Florian','Benedikt','Julian','Raphael','Arjun','Quirin','Andreas','Michael','Thomas','Daniel','Philipp','Johannes','Sebastian','Alexander','Christian','Stefan','Matthias','Dominik','Patrick','Markus','Lorenz','Valentin','Anton','Vincent','Noah','Ben','Finn','Luis','Jan','Max','Samuel','Oliver'];
+const AMB=['Kim','Alex','Luca','Robin','Noa','Sascha','Andrea','Mika','Sam','Toni','Jona','Maxi'];
+const SN={offen:'offen',zusage:'zusage',warte:'warteliste',absage:'absage'};
+const DEFAULT_TPL={
+zusage:{s:'Zusage: {kurs}',b:'Hallo {vorname},\n\nvielen Dank für deine Bewerbung. Wir freuen uns, dir einen Platz in der „{kurs}" anbieten zu können.\n\nDie erste Sitzung findet am {termin} statt ({ort}). Eine Bestätigung ist nicht nötig. Wer zur ersten Sitzung nicht kommt, gibt den Platz an die Warteliste ab. Falls du doch nicht teilnehmen kannst, sag uns bitte kurz Bescheid.\n\nViele Grüße\n{absender}'},
+warte:{s:'Warteliste: {kurs}',b:'Hallo {vorname},\n\nvielen Dank für deine Bewerbung für die „{kurs}". Wir hatten deutlich mehr Bewerbungen als Plätze. Du stehst auf Platz {position} der Warteliste.\n\nSobald ein Platz frei wird, melden wir uns. Das passiert meist nach der ersten Sitzung am {termin}.\n\nViele Grüße\n{absender}'},
+absage:{s:'Deine Bewerbung: {kurs}',b:'Hallo {vorname},\n\nvielen Dank für dein Interesse an der „{kurs}". Leider hatten wir deutlich mehr Bewerbungen als Plätze und können dir diesmal keinen Platz anbieten.\n\nDas Gründungszentrum bietet laufend weitere Formate an. Wir freuen uns, wenn du dich wieder bewirbst.\n\nViele Grüße\n{absender}'},
+nach:{s:'Ein Platz ist frei: {kurs}',b:'Hallo {vorname},\n\nin der „{kurs}" ist ein Platz frei geworden, und du bist als Nächste:r auf der Warteliste dran.\n\nDie nächste Sitzung ist am {termin2} ({ort}). Komm einfach vorbei. Falls du keine Zeit mehr hast, sag uns bitte bis morgen Bescheid.\n\nViele Grüße\n{absender}'}};
+function emptyState(){return{apps:[],sgAlias:{},demo:false,kurs:'Start-up Challenge',semester:'WiSe 2026/27',plaetze:32,termin:'Mittwoch, 21.10.2026, 18:00 Uhr',termin2:'Mittwoch, 28.10.2026, 18:00 Uhr',ort:'Gründungszentrum',absender:'Team Gründungszentrum',senderAddr:'',tpl:JSON.parse(JSON.stringify(DEFAULT_TPL))}}
+
+/* ---------- server I/O ---------- */
+let S=null,REV=0,HEALTH={mistral:false,mac:false},saveTimer=null,saving=false,dirty=false;
+async function api(path,opts={}){
+  const r=await fetch(path,{...opts,headers:{'Content-Type':'application/json','X-Kursauswahl':'1',...(opts.headers||{})}});
+  let j=null;try{j=await r.json()}catch(_){}
+  if(!r.ok){const e=new Error((j&&j.error)||('HTTP '+r.status));e.status=r.status;e.body=j;throw e}
+  return j;
+}
+function save(){dirty=true;clearTimeout(saveTimer);saveTimer=setTimeout(flush,300)}
+async function flush(){
+  if(saving){saveTimer=setTimeout(flush,200);return}
+  if(!dirty)return;saving=true;dirty=false;
+  try{const r=await api('/api/state',{method:'PUT',body:JSON.stringify({rev:REV,data:S})});REV=r.rev;$('#offline').hidden=true}
+  catch(e){
+    if(e.status===409){const st=await api('/api/state');REV=st.rev;S=normalize(st.data);toast('In einem anderen Fenster geändert. Neu geladen.');render()}
+    else{$('#offline').hidden=false;dirty=true;saveTimer=setTimeout(flush,3000)}
+  }finally{saving=false}
+}
+window.addEventListener('beforeunload',e=>{if(dirty){flush();e.preventDefault();e.returnValue=''}});
+function normalize(d){const s={...emptyState(),...(d||{})};s.tpl={...JSON.parse(JSON.stringify(DEFAULT_TPL)),...(s.tpl||{})};s.sgAlias=s.sgAlias||{};s.apps=(s.apps||[]).map(a=>({...blank(),...a,sg:canonSg(a.sg,s.sgAlias)}));return s}
+
+/* ---------- helpers ---------- */
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const byStatus=st=>S.apps.filter(a=>a.status===st).sort((a,b)=>a.order-b.order);
+const sgS=s=>s?(SHORT[s]||s):'?';
+const meta=a=>`${esc(sgS(a.sg))} · ${a.abschluss?a.abschluss[0]:'?'} · ${a.sem??'?'}`;
+const d6=iso=>iso?iso.slice(2):'--';
+const fullName=a=>esc(((a.vn||'')+' '+(a.nn||'')).trim()||a.email||'Unbekannt');
+const guessGender=vn=>FEM.includes(vn)?'w':MAL.includes(vn)?'m':'?';
+const norm=s=>String(s||'').toLowerCase().replace(/\s+/g,' ').trim();
+function blank(){return{status:'offen',seen:false,mail:null,anwesend:null,nachruecker:false,ersetzt:false,flags:[],gEdited:false}}
+function toast(m,ms=2200){const t=document.createElement('div');t.className='toast';t.textContent=m;document.body.appendChild(t);setTimeout(()=>t.remove(),ms)}
+const P=()=>Number(S.plaetze)||0;
+let tab='import',sub='durchgang',sel=null,mailSel=null,hist=[],lastImport=null,busy=false;
+try{const v=JSON.parse(localStorage.getItem('kursauswahl-ui')||'{}');if(v.tab)tab=v.tab;if(v.sub)sub=v.sub}catch(e){}
+function saveUi(){try{localStorage.setItem('kursauswahl-ui',JSON.stringify({tab,sub}))}catch(e){}}
+
+function header(){
+  const z=byStatus('zusage').length;$('#hKurs').textContent=S.kurs;$('#hSem').textContent=S.semester+(S.demo?' · Beispieldaten':'');
+  $('#hCount').innerHTML=S.apps.length?`<span class="${z>P()?'bad':''}">${z}</span><span class="m"> / ${P()}</span>`:'';
+  $$('#tabs button').forEach(b=>b.setAttribute('aria-current',b.dataset.t===tab));
+}
+function render(){header();document.onkeydown=null;
+  const needData=['auswahl','mails','sitzung','auswertung'].includes(tab)&&!S.apps.length;
+  if(needData){$('#main').innerHTML=`<div class="col1"><p>Noch keine Bewerbungen.</p><button class="btn solid" id="goImp">Zum Import</button></div>`;$('#goImp').onclick=()=>{tab='import';saveUi();render()};rSheet();return}
+  ({import:rImport,auswahl:rAuswahl,mails:rMails,sitzung:rSitzung,auswertung:rAuswertung,einstellungen:rSettings}[tab]||rImport)();rSheet()}
+$$('#tabs button').forEach(b=>b.onclick=()=>{tab=b.dataset.t;saveUi();render()});
+
+/* ---------- mail parsing ---------- */
+function bin(buf){const u=new Uint8Array(buf);let s='';for(let i=0;i<u.length;i+=8192)s+=String.fromCharCode.apply(null,u.subarray(i,i+8192));return s}
+function bytesOf(s){const u=new Uint8Array(s.length);for(let i=0;i<s.length;i++)u[i]=s.charCodeAt(i)&255;return u}
+function dec(s,cs){try{return new TextDecoder((cs||'utf-8').toLowerCase()).decode(bytesOf(s))}catch(e){try{return new TextDecoder('windows-1252').decode(bytesOf(s))}catch(_){return s}}}
+function qp(s){return s.replace(/=\r?\n/g,'').replace(/=([0-9A-F]{2})/gi,(m,h)=>String.fromCharCode(parseInt(h,16)))}
+function words(h){return(h||'').replace(/\?=\s+=\?/g,'?==?').replace(/=\?([^?]+)\?([QB])\?([^?]*)\?=/gi,(m,cs,e,t)=>{try{return dec(e.toUpperCase()==='B'?atob(t):qp(t.replace(/_/g,' ')),cs)}catch(_){return t}})}
+function parseMsg(raw){
+  const i=raw.search(/\r?\n\r?\n/);const head=(i<0?raw:raw.slice(0,i)).replace(/\r?\n[ \t]+/g,' ');const body=i<0?'':raw.slice(i).replace(/^\r?\n\r?\n/,'');
+  const H={};head.split(/\r?\n/).forEach(l=>{const k=l.indexOf(':');if(k>0){const n=l.slice(0,k).toLowerCase().trim();if(!(n in H))H[n]=l.slice(k+1).trim()}});
+  const ct=H['content-type']||'text/plain';const cte=(H['content-transfer-encoding']||'').toLowerCase();
+  const fname=words(((H['content-disposition']||'').match(/filename\*?="?([^";]+)"?/i)||(ct.match(/name\*?="?([^";]+)"?/i))||[])[1]||'');
+  if(/multipart\//i.test(ct)){const b=(ct.match(/boundary="?([^";]+)"?/i)||[])[1];if(!b)return{H,text:'',kind:'',att:[]};
+    const parts=body.split('--'+b).slice(1).filter(p=>!/^--/.test(p)).map(p=>parseMsg(p.replace(/^\r?\n/,'')));
+    const att=parts.flatMap(p=>p.att||[]);
+    const t=parts.find(p=>p.kind==='plain'&&p.text.trim())||parts.find(p=>p.text&&p.text.trim());return{H,text:t?t.text:'',kind:t?t.kind:'',att}}
+  if(/attachment/i.test(H['content-disposition']||'')||(fname&&!/^text\/(plain|html)/i.test(ct)))return{H,text:'',kind:'',att:[fname||'Anhang']};
+  let s=cte==='base64'?(()=>{try{return atob(body.replace(/\s/g,''))}catch(e){return''}})():cte==='quoted-printable'?qp(body):body;
+  s=dec(s,(ct.match(/charset="?([^";\s]+)"?/i)||[])[1]);
+  if(/text\/html/i.test(ct)){s=new DOMParser().parseFromString(s.replace(/<br\s*\/?>/gi,'\n').replace(/<\/(p|div)>/gi,'\n\n'),'text/html').body.textContent||'';return{H,text:s.replace(/\n{3,}/g,'\n\n'),kind:'html',att:[]}}
+  if(!/text\//i.test(ct))return{H,text:'',kind:'',att:[]};
+  return{H,text:s,kind:'plain',att:[]};
+}
+function stripQuoted(t){return t.split(/\r?\n/).filter(l=>!/^\s*>/.test(l)).join('\n').replace(/\n-- \n[\s\S]*$/,'').trim()}
+function toMail(raw){
+  const m=parseMsg(raw);const from=words(m.H.from||'');const email=((from.match(/<([^>]+)>/)||[])[1]||(from.match(/[\w.+-]+@[\w.-]+/)||[''])[0]).toLowerCase().trim();
+  const fromName=from.replace(/<[^>]*>/,'').replace(/"/g,'').trim();const dt=new Date(m.H.date||'');
+  return{from,fromName,email,to:words(m.H.to||''),full:String(m.text||'').replace(/\r\n/g,'\n').trim(),att:m.att||[],subject:words(m.H.subject||''),date:isNaN(dt)?new Date().toISOString().slice(0,10):dt.toISOString().slice(0,10),dateRaw:m.H.date||'',text:stripQuoted(m.text||'')};
+}
+function splitFiles(name,raw){
+  const nm=name.toLowerCase();if(nm.endsWith('.emlx'))raw=raw.replace(/^\d+\s*\r?\n/,'');
+  if(nm==='mbox'||nm.endsWith('.mbox')||/^From \S/.test(raw))return raw.split(/(?:^|\r?\n)From [^\r\n]*\r?\n/).filter(x=>x.trim()).map(x=>x.replace(/^>From /gm,'From '));
+  if(nm.endsWith('.eml')||nm.endsWith('.emlx')||/^(received|return-path|from|date|message-id|mime-version|subject|delivered-to|x-[\w-]+):/im.test(raw.slice(0,3000)))return[raw];
+  return null;
+}
+function ruleExtract(text,fromName){
+  const o={};const t=text.replace(/ /g,' ');
+  const nm=t.match(/(?:ich hei(?:ß|ss)e|mein name ist|name:)\s*([A-ZÄÖÜ][\wäöüßıçğş-]+(?:\s+[A-ZÄÖÜ][\wäöüßıçğş-]+)+)/i);
+  const n=(nm?nm[1]:fromName||'').trim().split(/\s+/);o.vorname=n[0]||null;o.nachname=n.slice(1).join(' ')||null;
+  const tl=t.toLowerCase(),cands=[...KNOWN_SG,...Object.keys(SG_ALIAS),...Object.keys(S.sgAlias||{})].sort((a,b)=>b.length-a.length);
+  const hit=cands.find(c=>new RegExp('(^|[^a-zäöüß])'+c.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'($|[^a-zäöüß])').test(tl));o.studiengang=hit?canonSg(hit):null;
+  const se=t.match(/(\d{1,2})\s*\.?\s*(?:fach)?semester/i);o.semester=se?+se[1]:null;
+  o.abschluss=/master|m\.\s?sc|m\.\s?a\./i.test(t)?'Master':/bachelor|b\.\s?sc|b\.\s?a\./i.test(t)?'Bachelor':null;
+  const mo=t.match(/motivation:?\s*([\s\S]+?)(?:\n\s*\n|$)/i);o.motivation=mo?mo[1].trim():null;
+  o.geschlecht=guessGender(o.vorname);o.ist_bewerbung=/bewerb/i.test(t);o.unsicher=[];return o;
+}
+const FIELD={vorname:'Name',nachname:'Name',studiengang:'Studiengang',abschluss:'Abschluss',semester:'Semester',motivation:'Motivation'};
+function buildApp(mail,x,viaAI){
+  const flags=[];
+  if(!x.ist_bewerbung&&!/bewerb/i.test(mail.subject))flags.push('evtl. keine Bewerbung');
+  if(!x.vorname)flags.push('Name fehlt');if(!x.studiengang)flags.push('Studiengang fehlt');if(!x.abschluss)flags.push('Abschluss fehlt');
+  if(x.semester==null)flags.push('Semester fehlt');if(!x.motivation)flags.push('Motivation fehlt');
+  else if(!norm(mail.text).includes(norm(x.motivation)))flags.push('Motivation nicht wörtlich gefunden');
+  [...new Set((x.unsicher||[]).map(f=>FIELD[f]).filter(Boolean))].forEach(f=>{if(!flags.some(g=>g.startsWith(f)))flags.push(f+' unsicher')});
+  if(!viaAI)flags.push('ohne KI ausgelesen');
+  const g=x.geschlecht==='w'||x.geschlecht==='m'?x.geschlecht:guessGender(x.vorname);
+  return{...blank(),id:'a'+Date.now().toString(36)+Math.random().toString(36).slice(2,7),vn:x.vorname||'',nn:x.nachname||'',email:mail.email,
+    sg:canonSg(x.studiengang),abschluss:x.abschluss||'',sem:x.semester,g,mot:x.motivation||'',date:mail.date,order:S.apps.length,flags,
+    raw:'',mailText:mail.text,mailFull:mail.full||mail.text,mailTo:mail.to||'',mailDate:mail.dateRaw||'',att:mail.att||[],mailFrom:mail.from,mailSubject:mail.subject};
+}
+async function extract(mail){
+  if(HEALTH.mistral){try{return{x:await api('/api/extract',{method:'POST',body:JSON.stringify({text:mail.text,from:mail.from,subject:mail.subject,studiengaenge:sgNames()})}),ai:true}}
+    catch(e){return{x:ruleExtract(mail.text,mail.fromName),ai:false,err:e.message}}}
+  return{x:ruleExtract(mail.text,mail.fromName),ai:false};
+}
+async function importMails(mails){
+  if(busy)return;busy=true;
+  const stats={n:0,dup:0,check:0,skip:0,err:null};const seen=new Set(S.apps.map(a=>a.email).filter(Boolean));
+  const todo=[];for(const m of mails){if(m.email&&seen.has(m.email)){const ex=S.apps.find(a=>a.email===m.email);if(ex&&!ex.mailFull){Object.assign(ex,{mailFull:m.full,mailText:m.text,mailTo:m.to,mailDate:m.dateRaw,att:m.att,mailFrom:m.from,mailSubject:m.subject})}stats.dup++;continue}if(m.email)seen.add(m.email);todo.push(m)}
+  let done=0;const prog=()=>{const d=$('#drop');if(d){d.classList.add('busy');d.innerHTML=`Lese aus … ${done} / ${todo.length}<br><span class="m">${HEALTH.mistral?'mit Mistral':'mit Regeln'}</span>`}};prog();
+  const out=new Array(todo.length);let idx=0;
+  async function worker(){while(idx<todo.length){const i=idx++;const r=await extract(todo[i]);if(r.err&&!stats.err)stats.err=r.err;out[i]=buildApp(todo[i],r.x,r.ai);done++;prog()}}
+  await Promise.all([worker(),worker(),worker()]);
+  out.forEach(a=>{a.order=S.apps.length;S.apps.push(a);stats.n++;if(a.flags.length)stats.check++});
+  busy=false;save();lastImport=stats;render();
+}
+async function importFiles(files){
+  const mails=[];let skip=0;
+  for(const f of files){const parts=splitFiles(f.name,bin(await f.arrayBuffer()));if(!parts){skip++;continue}parts.forEach(p=>{const m=toMail(p);if(m.text.trim()||m.email)mails.push(m)})}
+  if(!mails.length){toast(skip?'Keine Mails in den Dateien gefunden.':'Keine Dateien erkannt.');return}
+  await importMails(mails);if(lastImport)lastImport.skip=skip;render();
+}
+async function filesFromDrop(dt){
+  const out=[];const entries=[...(dt.items||[])].map(i=>i.webkitGetAsEntry&&i.webkitGetAsEntry()).filter(Boolean);
+  if(!entries.length)return[...dt.files];
+  const walk=async e=>{if(e.isFile){if(!/^\./.test(e.name)&&!/\.plist$/i.test(e.name))out.push(await new Promise(r=>e.file(r)))}else if(e.isDirectory){const rd=e.createReader();let b;do{b=await new Promise(r=>rd.readEntries(r));for(const c of b)await walk(c)}while(b.length)}};
+  for(const e of entries)await walk(e);return out;
+}
+
+/* ---------- /import ---------- */
+function rImport(){
+  const flagged=S.apps.filter(a=>a.flags.length);
+  const list=S.apps.slice().sort((a,b)=>(b.flags.length>0)-(a.flags.length>0)||String(b.date).localeCompare(String(a.date)));
+  $('#main').innerHTML=`<div class="col1">
+  ${S.demo?`<p class="notice">Gerade sind Beispieldaten geladen. <button class="link u" id="clearDemo">Beispieldaten entfernen</button></p>`:''}
+  ${!HEALTH.mistral?`<p class="notice">Kein Mistral-Key gefunden. Ausgelesen wird mit einfachen Regeln, bitte jede Bewerbung prüfen. Key in der Datei <b>.env</b> eintragen und neu starten.</p>`:''}
+  <div class="drop" id="drop" tabindex="0" role="button">Mails hier ablegen<br><span class="m">.eml, .emlx oder exportiertes Postfach (.mbox)</span></div>
+  <input type="file" id="file" multiple hidden>
+  <p class="howto">Apple Mail: Ordner mit den Bewerbungen auswählen, <b>Postfach › Postfach exportieren …</b>, den exportierten Ordner hier ablegen. Oder Mails markieren und direkt hierher ziehen. Bereits importierte Absender werden übersprungen.</p>
+  ${lastImport?`<p style="margin:-14px 0 26px">${lastImport.n} importiert${lastImport.dup?` · ${lastImport.dup} schon vorhanden`:''}${lastImport.check?` · <span class="bad">${lastImport.check} prüfen</span>`:''}${lastImport.skip?` · ${lastImport.skip} Dateien ignoriert`:''}${lastImport.err?`<br><span class="bad">Mistral-Fehler: ${esc(lastImport.err)}</span>`:''}</p>`:''}
+  <details><summary>Mailtext einfügen</summary><textarea id="raw" style="min-height:140px;margin-top:10px" placeholder="Absender und Text der Mail hier einfügen"></textarea><div style="margin-top:8px"><button class="btn" id="addRaw">Übernehmen</button></div></details>
+  ${S.apps.length?`<div style="display:flex;justify-content:space-between;margin-bottom:6px"><span>${S.apps.length} Bewerbungen</span><span class="${flagged.length?'bad':'m'}">${flagged.length?flagged.length+' prüfen':'alles geprüft'}</span></div>
+  <div class="list">${list.map(a=>`<div class="li" data-id="${a.id}"><span class="m">${d6(a.date)}</span><span class="x">${fullName(a)} <span class="m">${meta(a)} · ${a.g}</span></span><span class="tag ${a.flags.length?'bad':''}">${a.flags.length?esc(a.flags[0])+(a.flags.length>1?' +'+(a.flags.length-1):''):''}</span></div>`).join('')}</div>`
+  :`<p class="m">Noch keine Bewerbungen. <button class="link u" id="demo">Mit Beispieldaten ausprobieren</button></p>`}</div>`;
+  const dz=$('#drop');
+  dz.onclick=()=>{if(!busy)$('#file').click()};dz.onkeydown=e=>{if(e.key==='Enter'&&!busy)$('#file').click()};
+  $('#file').onchange=e=>importFiles([...e.target.files]);
+  dz.ondragover=e=>{e.preventDefault();dz.classList.add('over')};dz.ondragleave=()=>dz.classList.remove('over');
+  dz.ondrop=async e=>{e.preventDefault();dz.classList.remove('over');if(busy)return;const f=await filesFromDrop(e.dataTransfer);if(f.length)importFiles(f);else toast('Keine Dateien erkannt. Mails erst in einen Finder-Ordner ziehen und von dort ablegen.',4000)};
+  $('#addRaw').onclick=()=>{const v=$('#raw').value.trim();if(!v)return;const raw=/^[\w-]+:/.test(v)&&/\r?\n\r?\n/.test(v)?v:'Subject: Bewerbung\n\n'+v;importMails([toMail(raw)])};
+  if($('#demo'))$('#demo').onclick=()=>{const d=demoApps();S.apps=d;S.demo=true;save();render()};
+  if($('#clearDemo'))$('#clearDemo').onclick=()=>{S.apps=[];S.demo=false;hist=[];save();render()};
+  $$('.li').forEach(r=>r.onclick=()=>{sel=r.dataset.id;rSheet()});
+}
+
+/* ---------- /auswahl ---------- */
+function rAuswahl(){
+  const open=S.apps.filter(a=>a.status==='offen'&&!a.seen).length,later=S.apps.filter(a=>a.status==='offen'&&a.seen).length;
+  if(sub!=='board')sub='durchgang';
+  $('#main').innerHTML=`<div class="sub" id="sub"><button class="link" data-s="durchgang">durchgang <span class="f">${open}</span></button><button class="link" data-s="board">board <span class="f">${later}</span></button></div><div id="pane"></div>`;
+  $$('#sub button').forEach(b=>{b.setAttribute('aria-current',b.dataset.s===sub);b.onclick=()=>{sub=b.dataset.s;saveUi();rAuswahl()}});
+  ({durchgang:rSwipe,board:rBoard})[sub]();
+}
+function rSwipe(){
+  const q=S.apps.filter(a=>a.status==='offen'&&!a.seen).sort((a,b)=>a.order-b.order);
+  const total=S.apps.length,done=total-q.length,ja=byStatus('zusage').length,nein=byStatus('absage').length,sp=S.apps.filter(a=>a.status==='offen'&&a.seen).length;
+  const a=q[0];
+  $('#pane').innerHTML=`<div class="swipe">
+   <div class="sw-top"><span>${done} / ${total}</span><span><span class="${ja>P()?'bad':''}">${ja} ja</span> · ${sp} später · ${nein} nein</span></div><div class="bar"><span style="width:${total?done/total*100:0}%"></span></div>
+   ${a?`<div class="stack">${q[1]?'<div class="scard back"></div>':''}<div class="scard" id="sc">
+     <span class="stamp" id="stamp"></span>
+     <div class="sc-name">${fullName(a)}</div><div class="sc-meta">${esc(a.sg||'Studiengang unklar')} · ${esc(a.abschluss||'?')} · ${a.sem??'?'}. Semester</div>
+     <p class="sc-mot">${esc(a.mot)||'<span class="m">Keine Motivation erkannt.</span>'}</p>
+     ${a.flags.length?`<p class="bad" style="margin:18px 0 0">${a.flags.map(esc).join(', ')}</p>`:''}</div></div>
+   <div class="sw-btns"><button class="btn" data-d="nein">Nein<kbd>←</kbd></button><button class="btn" data-d="spaeter">Später<kbd>↓</kbd></button><button class="btn solid" data-d="ja">Ja<kbd>→</kbd></button></div>`
+   :`<p style="margin-top:20px">Durchgang fertig. ${ja} ja für ${P()} Plätze, ${sp} zum nochmal Ansehen.</p><button class="btn solid" id="toBoard">Weiter zum Board</button>`}
+   <div class="sw-foot">${hist.length?`<button class="link m" id="undo">rückgängig<kbd>Z</kbd></button>`:'<span></span>'}${a?`<button class="link m" id="info">originalmail</button>`:''}</div></div>`;
+  if($('#toBoard'))$('#toBoard').onclick=()=>{sub='board';saveUi();rAuswahl()};
+  if($('#undo'))$('#undo').onclick=undo;
+  if($('#info'))$('#info').onclick=()=>openMail(a.id);
+  document.onkeydown=e=>{if(sel||/INPUT|TEXTAREA|SELECT/.test(e.target.tagName))return;
+    if(e.key==='ArrowRight')decide('ja');else if(e.key==='ArrowLeft')decide('nein');else if(e.key==='ArrowDown'){e.preventDefault();decide('spaeter')}else if(e.key==='z'||e.key==='Backspace')undo()};
+  if(!a)return;
+  $$('.sw-btns .btn').forEach(b=>b.onclick=()=>decide(b.dataset.d));
+  const c=$('#sc'),st=$('#stamp');let x0=null,y0=0,dx=0,dy=0;
+  c.onpointerdown=e=>{x0=e.clientX;y0=e.clientY;c.setPointerCapture(e.pointerId);c.style.transition='none'};
+  c.onpointermove=e=>{if(x0===null)return;dx=e.clientX-x0;dy=e.clientY-y0;c.style.transform=`translate(${dx}px,${dy*.3}px) rotate(${dx/20}deg)`;
+    const w=Math.abs(dx)>=60?(dx>0?'ja':'nein'):dy>40?'später':'';st.textContent=w;st.className='stamp'+(w==='nein'?' bad':'');st.style.opacity=w?Math.min(1,Math.max(Math.abs(dx),dy)/110):0};
+  c.onpointerup=c.onpointercancel=()=>{if(x0===null)return;x0=null;c.style.transition='';
+    if(dx>110)decide('ja');else if(dx<-110)decide('nein');else if(dy>110&&Math.abs(dx)<60)decide('spaeter');else{c.style.transform='';st.style.opacity=0}dx=dy=0};
+}
+function decide(d){
+  const a=S.apps.filter(x=>x.status==='offen'&&!x.seen).sort((x,y)=>x.order-y.order)[0];if(!a)return;
+  hist.push({id:a.id});const c=$('#sc');
+  const go=()=>{a.seen=true;if(d==='ja'){a.order=byStatus('zusage').length;a.status='zusage'}else if(d==='nein'){a.order=byStatus('absage').length;a.status='absage'}save();header();rAuswahl()};
+  if(c&&!matchMedia('(prefers-reduced-motion: reduce)').matches){c.style.transition='transform .2s ease-in,opacity .2s';c.style.transform=d==='ja'?'translate(140%,0) rotate(16deg)':d==='nein'?'translate(-140%,0) rotate(-16deg)':'translate(0,50%)';c.style.opacity=0;setTimeout(go,190)}else go();
+}
+function undo(){const h=hist.pop();if(!h)return;const a=S.apps.find(x=>x.id===h.id);if(!a)return;a.status='offen';a.seen=false;a.mail=null;a.order=-1;
+  S.apps.filter(x=>x.status==='offen'&&!x.seen).sort((x,y)=>x.order-y.order).forEach((x,i)=>x.order=i);save();header();rAuswahl()}
+function mixLine(){const z=byStatus('zusage');const c=f=>{const m={};z.forEach(a=>{const v=f(a);m[v]=(m[v]||0)+1});return m};
+  const ab=c(a=>a.abschluss||'?'),g=c(a=>a.g),top=Object.entries(c(a=>sgS(a.sg))).sort((a,b)=>b[1]-a[1]).slice(0,4);
+  return `<div class="mix"><span>Zusagen</span><span><b>${ab.Bachelor||0}</b> B <b>${ab.Master||0}</b> M</span><span><b>${g.w||0}</b> w <b>${g.m||0}</b> m <b>${g['?']||0}</b> ?</span><span>${top.map(([k,v])=>`${esc(k)} <b>${v}</b>`).join('  ')}</span></div>`}
+function rBoard(){
+  const cols=[['offen','nochmal ansehen'],['zusage','zusage'],['warte','warteliste'],['absage','absage']];
+  const unseen=S.apps.filter(a=>a.status==='offen'&&!a.seen).length;
+  $('#pane').innerHTML=`${unseen?`<p class="notice">${unseen} Bewerbungen noch nicht im Durchgang. <button class="link u" id="goSw">Zum Durchgang</button></p>`:''}${mixLine()}
+  <div class="boardscroll"><div class="board">${cols.map(([k,t])=>{const l=byStatus(k).filter(a=>k!=='offen'||a.seen);const n=byStatus(k).length;
+   return `<div><div class="colhead"><span>${t}</span><span class="${k==='zusage'&&n>P()?'bad':'m'}">${k==='zusage'?n+' / '+P():l.length}</span></div>
+   <div class="colbody" data-col="${k}">${l.map((a,i)=>card(a,k==='warte'?i+1:null,k==='offen')).join('')}</div></div>`}).join('')}</div></div>`;
+  if($('#goSw'))$('#goSw').onclick=()=>{sub='durchgang';saveUi();rAuswahl()};
+  wireDnD();
+}
+function card(a,pos,full){return `<div class="card" draggable="true" data-id="${a.id}" tabindex="0"><div class="top"><span class="nm">${pos?`<span class="m">${pos}&nbsp;&nbsp;</span>`:''}${fullName(a)}</span><span class="mt">${meta(a)}</span></div>${full?`<div class="mot">${esc(a.mot)}</div>`:''}</div>`}
+let dragId=null;
+function wireDnD(){
+  $$('.card').forEach(c=>{c.ondragstart=e=>{dragId=c.dataset.id;c.classList.add('dragging');e.dataTransfer.effectAllowed='move';try{e.dataTransfer.setData('text/plain',dragId)}catch(_){}};
+    c.ondragend=()=>{c.classList.remove('dragging');$$('.drop2,.ins').forEach(x=>x.classList.remove('drop2','ins'))};
+    c.onclick=()=>{sel=c.dataset.id;rSheet()};c.onkeydown=e=>{if(e.key==='Enter'){sel=c.dataset.id;rSheet()}}});
+  $$('.colbody').forEach(b=>{b.ondragover=e=>{e.preventDefault();b.classList.add('drop2');$$('.ins').forEach(x=>x.classList.remove('ins'));const t=before(b,e.clientY);if(t)t.classList.add('ins')};
+    b.ondragleave=e=>{if(!b.contains(e.relatedTarget))b.classList.remove('drop2')};
+    b.ondrop=e=>{e.preventDefault();const t=before(b,e.clientY);move(dragId,b.dataset.col,t?t.dataset.id:null)}});
+}
+const before=(b,y)=>[...b.querySelectorAll('.card:not(.dragging)')].find(c=>{const r=c.getBoundingClientRect();return y<r.top+r.height/2})||null;
+function move(id,col,beforeId){const a=S.apps.find(x=>x.id===id);if(!a)return;
+  const l=byStatus(col).filter(x=>x.id!==id);let i=beforeId?l.findIndex(x=>x.id===beforeId):l.length;if(i<0)i=l.length;l.splice(i,0,a);
+  a.seen=true;if(a.status!==col){a.status=col;a.mail=null;a.anwesend=null;if(col!=='zusage')a.nachruecker=false}l.forEach((x,k)=>x.order=k);save();render()}
+
+/* ---------- original mail reader ---------- */
+function openMail(id){const a=S.apps.find(x=>x.id===id);if(!a)return;
+  const L=$('#reader');const body=a.mailFull||a.mailText||a.raw||'';
+  L.innerHTML=`<div class="rd" role="dialog" aria-label="Originalmail" tabindex="-1"><div class="rd-in">
+   <div class="rd-top"><span class="m">Originalmail</span><button class="link" id="rdClose">schließen</button></div>
+   <div class="hdr"><span>von</span><span>${esc(a.mailFrom||a.email)}</span>${a.mailTo?`<span>an</span><span>${esc(a.mailTo)}</span>`:''}<span>datum</span><span>${esc(a.mailDate||a.date)}</span><span>betreff</span><span>${esc(a.mailSubject||'')}</span>${a.att&&a.att.length?`<span>anhänge</span><span>${a.att.map(esc).join(', ')} <span class="f">(in Apple Mail öffnen)</span></span>`:''}</div>
+   <div class="rd-body">${esc(body)||'<span class="m">Kein Text gespeichert. Mail erneut importieren, um ihn nachzuladen.</span>'}</div></div></div>`;
+  const close=()=>{L.innerHTML='';document.removeEventListener('keydown',esc_,true)};
+  const esc_=e=>{if(e.key==='Escape'){e.stopPropagation();e.preventDefault();close()}};document.addEventListener('keydown',esc_,true);
+  $('#rdClose').onclick=close;L.querySelector('.rd').onclick=e=>{if(e.target.classList.contains('rd'))close()};L.querySelector('.rd').focus();
+}
+
+/* ---------- detail sheet ---------- */
+function rSheet(){
+  const L=$('#layer'),a=S.apps.find(x=>x.id===sel);if(!a){L.innerHTML='';return}
+  const sgs=[...new Set([...KNOWN_SG,...S.apps.map(x=>x.sg).filter(Boolean)])].sort((x,y)=>x.localeCompare(y,'de'));
+  L.innerHTML=`<div class="scrim" id="scrim"></div><aside class="sheet" role="dialog" aria-label="Bewerbung">
+  <div style="display:flex;justify-content:space-between;gap:10px"><span class="m">${d6(a.date)}</span><button class="link" id="close">schließen</button></div>
+  <div class="fields" style="margin-top:14px">
+    <div><label for="eVn">Vorname</label><input id="eVn" value="${esc(a.vn)}"></div><div><label for="eNn">Nachname</label><input id="eNn" value="${esc(a.nn)}"></div>
+    <div class="full"><label for="eEm">E-Mail</label><input id="eEm" value="${esc(a.email)}"></div></div>
+  <div class="st">${Object.keys(SN).map(s=>`<button class="link ${a.status===s?'on':''}" data-s="${s}">${SN[s]}</button>`).join('')}</div>
+  <div class="fields">
+    <div class="full"><label for="eSg">Studiengang</label><input id="eSg" list="sgList" value="${esc(a.sg)}"><datalist id="sgList">${sgs.map(s=>`<option value="${esc(s)}">`).join('')}</datalist></div>
+    <div><label for="eAb">Abschluss</label><select id="eAb"><option value="">unklar</option>${['Bachelor','Master'].map(s=>`<option ${s===a.abschluss?'selected':''}>${s}</option>`).join('')}</select></div>
+    <div><label for="eSem">Semester</label><input id="eSem" type="number" min="1" max="30" value="${a.sem??''}"></div>
+    <div class="full"><label for="eG">Geschlecht ${a.gEdited?'':'(geschätzt)'}</label><select id="eG">${[['w','weiblich'],['m','männlich'],['?','unklar / divers']].map(([v,t])=>`<option value="${v}" ${a.g===v?'selected':''}>${t}</option>`).join('')}</select></div>
+    <div class="full"><label for="eMot">Motivation</label><textarea id="eMot" style="min-height:100px">${esc(a.mot)}</textarea></div>
+  </div>
+  ${a.flags.length?`<p class="bad">${a.flags.map(esc).join(', ')} <button class="link u" id="ok" style="color:var(--fg);margin-left:8px">geprüft</button></p>`:''}
+  <div style="display:flex;flex-wrap:wrap;gap:18px;margin:14px 0 6px"><button class="link u" id="openMail">originalmail lesen</button>${HEALTH.mistral&&a.mailText?`<button class="link u" id="reex">neu auslesen</button>`:''}<button class="link u bad" id="del">Bewerbung löschen</button></div>
+  </aside>`;
+  const close=()=>{sel=null;render()};
+  $('#openMail').onclick=()=>openMail(a.id);
+  $('#close').onclick=close;$('#scrim').onclick=close;
+  L.querySelector('.sheet').onkeydown=e=>{if(e.key==='Escape')close()};
+  $$('.st button').forEach(b=>b.onclick=()=>{move(a.id,b.dataset.s,null)});
+  const upd=()=>{a.vn=$('#eVn').value.trim();a.nn=$('#eNn').value.trim();a.email=$('#eEm').value.trim().toLowerCase();a.sg=canonSg($('#eSg').value);a.abschluss=$('#eAb').value;
+    a.sem=$('#eSem').value?+$('#eSem').value:null;const g=$('#eG').value;if(g!==a.g){a.g=g;a.gEdited=true}a.mot=$('#eMot').value;save()};
+  ['#eVn','#eNn','#eEm','#eSg','#eAb','#eSem','#eG','#eMot'].forEach(s=>$(s).onchange=()=>{upd();header()});
+  if($('#ok'))$('#ok').onclick=()=>{a.flags=[];save();render()};
+  if($('#reex'))$('#reex').onclick=async()=>{$('#reex').textContent='liest aus …';const mail={text:a.mailText,full:a.mailFull,from:a.mailFrom,fromName:'',subject:a.mailSubject,email:a.email,date:a.date,dateRaw:''};
+    const r=await extract(mail);const n=buildApp(mail,r.x,r.ai);Object.assign(a,{vn:n.vn,nn:n.nn,sg:n.sg,abschluss:n.abschluss,sem:n.sem,mot:n.mot,flags:n.flags});if(!a.gEdited)a.g=n.g;
+    save();rSheet();toast(r.ai?'Neu ausgelesen':'Mistral nicht erreichbar: '+(r.err||''))};
+  $('#del').onclick=()=>{const b=$('#del');if(b.dataset.c){S.apps=S.apps.filter(x=>x.id!==a.id);sel=null;save();render();toast('Gelöscht')}else{b.dataset.c=1;b.textContent='Wirklich löschen? Nochmal klicken'}};
+}
+
+/* ---------- /mails ---------- */
+const typeOf=a=>a.status==='zusage'?(a.nachruecker?'nach':'zusage'):a.status;
+function fill(s,a){const p=byStatus('warte').findIndex(x=>x.id===a.id)+1;return String(s).replace(/\{vorname\}/g,a.vn||'').replace(/\{kurs\}/g,S.kurs).replace(/\{termin\}/g,S.termin).replace(/\{termin2\}/g,S.termin2).replace(/\{ort\}/g,S.ort).replace(/\{absender\}/g,S.absender).replace(/\{position\}/g,p||'–')}
+const mailState=a=>a.mail==='versendet'?'versendet':a.mail==='entwurf'?'entwurf in Mail':'—';
+async function makeDrafts(list){
+  if(busy)return;busy=true;let ok=0;let err=null;
+  for(const a of list){toast(`Entwürfe … ${ok+1} / ${list.length}`,900);const t=S.tpl[typeOf(a)];
+    try{await api('/api/draft',{method:'POST',body:JSON.stringify({to:a.email,subject:fill(t.s,a),body:fill(t.b,a),sender:S.senderAddr||''})});a.mail='entwurf';ok++;save()}
+    catch(e){err=e.message;break}}
+  busy=false;rMails();
+  if(err)toast(`${ok} Entwürfe angelegt. Abgebrochen: ${err}`,8000);else toast(`${ok} Entwürfe in Apple Mail angelegt. Bitte dort prüfen und senden.`,5000);
+}
+function rMails(){
+  const z=byStatus('zusage').filter(a=>!a.nachruecker),nr=byStatus('zusage').filter(a=>a.nachruecker),w=byStatus('warte'),ab=byStatus('absage').filter(a=>!a.ersetzt),off=byStatus('offen');
+  const all=[...nr,...z,...w,...ab];if(!all.some(a=>a.id===mailSel))mailSel=(all.find(a=>!a.mail)||all[0]||{}).id;
+  const noAddr=all.filter(a=>!a.email).length;
+  const grp=(t,l,k)=>{if(!l.length)return'';const open=l.filter(a=>!a.mail&&a.email);return `<div class="group"><div class="gh"><span>${t} <span class="m">${l.length}</span></span><span class="acts">${HEALTH.mac&&open.length?`<button class="link u" data-dr="${k}">${open.length} Entwürfe anlegen</button>`:''}<button class="link m" data-all="${k}">alle versendet</button></span></div>
+    ${l.map((a,i)=>`<div class="rc ${a.id===mailSel?'on':''}" data-id="${a.id}"><span>${k==='warte'?`<span class="m">${i+1}&nbsp;&nbsp;</span>`:''}${fullName(a)}</span><span class="${a.email?'m':'bad'}">${a.email?mailState(a):'keine Adresse'}</span></div>`).join('')}</div>`};
+  const a=S.apps.find(x=>x.id===mailSel);let prev='<p class="m">Noch niemand entschieden.</p>';
+  if(a){const t=S.tpl[typeOf(a)];prev=`<div class="hdr"><span>an</span><span>${esc(a.email)||'<span class="bad">keine Adresse</span>'}</span><span>betreff</span><span id="pSub">${esc(fill(t.s,a))}</span></div><pre id="pBody">${esc(fill(t.b,a))}</pre>
+    <div class="actions">${HEALTH.mac&&a.email?`<button class="btn ${a.mail?'':'solid'}" id="draft">${a.mail==='entwurf'?'Nochmal als Entwurf':'Entwurf in Apple Mail'}</button>`:''}<button class="btn" id="cpy">Text kopieren</button><button class="btn" id="sent">${a.mail==='versendet'?'Zurück auf offen':'Als versendet markieren'}</button></div>`}
+  $('#main').innerHTML=`${off.length?`<p class="notice">${off.length} noch nicht entschieden, bekommen keine Mail.</p>`:''}${noAddr?`<p class="notice bad">${noAddr} ohne E-Mail-Adresse. Im Import nachtragen.</p>`:''}${!HEALTH.mac?`<p class="notice">Entwürfe in Apple Mail gehen nur, wenn die App auf einem Mac läuft.</p>`:''}
+  <div class="mailgrid"><div>${grp('nachrücker',nr,'nach')}${grp('zusage',z,'zusage')}${grp('warteliste',w,'warte')}${grp('absage',ab,'absage')}
+  <p class="f">Texte und Absender unter /einstellungen.</p></div><div><div class="preview">${prev}</div></div></div>`;
+  const groupOf=k=>k==='nach'?nr:k==='zusage'?z:k==='warte'?w:ab;
+  $$('.rc').forEach(r=>r.onclick=()=>{mailSel=r.dataset.id;rMails()});
+  $$('[data-all]').forEach(b=>b.onclick=()=>{groupOf(b.dataset.all).forEach(x=>x.mail='versendet');save();rMails()});
+  $$('[data-dr]').forEach(b=>b.onclick=()=>makeDrafts(groupOf(b.dataset.dr).filter(x=>!x.mail&&x.email)));
+  if(a){
+    if($('#draft'))$('#draft').onclick=()=>makeDrafts([a]);
+    $('#cpy').onclick=()=>{const txt=$('#pSub').textContent+'\n\n'+$('#pBody').textContent;navigator.clipboard.writeText(txt).then(()=>toast('Kopiert'),()=>toast('Kopieren nicht möglich'))};
+    $('#sent').onclick=()=>{a.mail=a.mail==='versendet'?null:'versendet';save();if(a.mail){const nx=[...nr,...z,...w,...ab].find(x=>!x.mail);if(nx)mailSel=nx.id}rMails()}}
+}
+
+/* ---------- /erste-sitzung ---------- */
+function rSitzung(){
+  const z=byStatus('zusage').filter(a=>!a.nachruecker),w=byStatus('warte'),miss=z.filter(a=>a.anwesend===false),nr=byStatus('zusage').filter(a=>a.nachruecker);
+  const da=z.filter(a=>a.anwesend===true).length;
+  $('#main').innerHTML=`<div class="col1"><p class="m">${esc(S.termin)} · ${da} da · ${miss.length} nicht da · ${z.length-da-miss.length} offen</p>
+  ${miss.length?`<p class="notice">${miss.length} ${miss.length>1?'Plätze':'Platz'} frei. ${w.length?`Nächste auf der Warteliste: ${w.slice(0,miss.length).map(fullName).join(', ')}. <button class="btn solid" id="nach" style="margin-left:6px">Nachrücken lassen</button>`:'Warteliste ist leer.'}</p>`:''}
+  <div class="list" style="margin-top:18px">${z.map(a=>`<div class="att"><span>${fullName(a)}</span><span class="seg" data-id="${a.id}"><button class="${a.anwesend===true?'on':''}" data-v="1">da</button><button class="n ${a.anwesend===false?'on':''}" data-v="0">nicht da</button></span></div>`).join('')||'<p class="m" style="padding-top:10px">Noch keine Zusagen.</p>'}</div>
+  ${nr.length?`<p class="m" style="margin-top:26px">Nachgerückt: ${nr.map(fullName).join(', ')}. Mails unter /mails.</p>`:''}</div>`;
+  $$('.seg').forEach(sg=>sg.querySelectorAll('button').forEach(b=>b.onclick=()=>{const p=S.apps.find(x=>x.id===sg.dataset.id),v=b.dataset.v==='1';p.anwesend=p.anwesend===v?null:v;save();rSitzung()}));
+  if($('#nach'))$('#nach').onclick=()=>{let n=0;miss.forEach(m=>{const nx=byStatus('warte')[0];if(!nx)return;m.status='absage';m.ersetzt=true;m.order=999;nx.status='zusage';nx.nachruecker=true;nx.mail=null;nx.order=byStatus('zusage').length;n++});
+    byStatus('warte').forEach((x,i)=>x.order=i);save();header();rSitzung();toast(n+' nachgerückt')};
+}
+
+/* ---------- /auswertung ---------- */
+function rAuswertung(){
+  const all=S.apps,z=byStatus('zusage'),w=byStatus('warte').length,ab=byStatus('absage').length,of=byStatus('offen').length;
+  const BA=a=>a.abschluss==='Bachelor',MA=a=>a.abschluss==='Master';
+  const lenB=a=>{const n=(a.mot||'').length;return n<100?'unter 100 Zeichen':n<150?'100–149 Zeichen':n<200?'150–199 Zeichen':'200 Zeichen und mehr'};
+  const bars=(f,list,order,sortNum)=>{const c=new Map(),cz=new Map();list.forEach(a=>{const k=f(a);c.set(k,(c.get(k)||0)+1);if(a.status==='zusage')cz.set(k,(cz.get(k)||0)+1)});
+    let keys=[...c.keys()];keys=order?order.filter(k=>c.has(k)).concat(keys.filter(k=>!order.includes(k))):sortNum?keys.sort((x,y)=>(x==='?')-(y==='?')||x-y):keys.sort((x,y)=>c.get(y)-c.get(x));
+    if(!keys.length)return '<p class="m">Keine Bewerbungen.</p>';const max=Math.max(...keys.map(k=>c.get(k)));
+    return keys.map(k=>`<div class="row"><span class="lbl" title="${esc(k)}">${esc(sortNum&&k!=='?'?k+'. Semester':k)}</span><span class="track"><span class="all" style="width:${c.get(k)/max*100}%"></span><span class="sel" style="width:${(cz.get(k)||0)/max*100}%"></span></span><span class="n"><b>${cz.get(k)||0}</b> / ${c.get(k)}</span></div>`).join('')};
+  const pair=(f,sortNum)=>`<div class="pair"><div><h3>Bachelor <span class="f">${all.filter(BA).length}</span></h3>${bars(f,all.filter(BA),null,sortNum)}</div><div><h3>Master <span class="f">${all.filter(MA).length}</span></h3>${bars(f,all.filter(MA),null,sortNum)}</div></div>`;
+  const lens=all.map(a=>(a.mot||'').length).sort((x,y)=>x-y),med=lens.length?lens[Math.floor(lens.length/2)]:0;
+  $('#main').innerHTML=`
+  <div class="kpi"><span><b>${all.length}</b>Bewerbungen</span><span><b>${P()?(all.length/P()).toFixed(1).replace('.',','):'–'}</b>pro Platz</span><span><b class="${z.length>P()?'bad':''}">${z.length}</b>Zusagen</span><span><b>${w}</b>Warteliste</span><span><b>${ab}</b>Absagen</span><span><b>${of}</b>offen</span></div>
+  <div class="leg"><span><i style="background:var(--s1)"></i>Zusagen</span><span><i style="background:var(--rule)"></i>alle Bewerbungen</span></div>
+  <section class="aw"><h2>Bachelor / Master</h2>${bars(a=>a.abschluss||'unklar',all,['Bachelor','Master','unklar'])}</section>
+  <section class="aw"><h2>Studiengang</h2>${pair(a=>a.sg||'unklar')}</section>
+  <section class="aw"><h2>Semester</h2>${pair(a=>a.sem==null?'?':String(a.sem),true)}</section>
+  <section class="aw"><h2>Länge der Motivation <span class="f">Median ${med} Zeichen</span></h2>${bars(lenB,all,['unter 100 Zeichen','100–149 Zeichen','150–199 Zeichen','200 Zeichen und mehr'])}</section>
+  <section class="aw"><h2>Männlich / weiblich</h2>${bars(a=>({w:'weiblich',m:'männlich'})[a.g]||'unklar',all,['weiblich','männlich','unklar'])}</section>`;
+}
+
+/* ---------- /einstellungen ---------- */
+function download(name,text,type){const u=URL.createObjectURL(new Blob([text],{type}));const l=document.createElement('a');l.href=u;l.download=name;document.body.appendChild(l);l.click();l.remove();setTimeout(()=>URL.revokeObjectURL(u),1000)}
+function csv(rows){return '﻿'+rows.map(r=>r.map(v=>{const s=String(v??'');return /[;"\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s}).join(';')).join('\n')}
+function rSettings(){
+  const f=(id,k,l,type='text')=>`<div><label for="${id}">${l}</label><input id="${id}" type="${type}" value="${esc(S[k])}" data-k="${k}"></div>`;
+  $('#main').innerHTML=`<div class="col1">
+  <section class="sec"><h2>Kurs</h2><div class="settings">${f('sK','kurs','Name')}${f('sS','semester','Semester')}${f('sP','plaetze','Plätze','number')}${f('sO','ort','Ort')}${f('sT','termin','Erste Sitzung')}${f('sT2','termin2','Nächste Sitzung (für Nachrücker)')}</div></section>
+  <section class="sec"><h2>Absender</h2><div class="settings">${f('sA','absender','Name unter den Mails')}${f('sM','senderAddr','Absender-Adresse in Apple Mail','email')}</div>
+   <p class="f" style="margin-top:10px">Muss genau einer Adresse entsprechen, die in Apple Mail eingerichtet ist. Leer lassen für das Standardkonto.</p></section>
+  <section class="sec"><h2>Mailtexte</h2><p class="f">Platzhalter: {vorname} {kurs} {termin} {termin2} {ort} {position} {absender}</p>
+   ${[['zusage','Zusage'],['warte','Warteliste'],['absage','Absage'],['nach','Nachrücken']].map(([k,t])=>`<label for="ts_${k}" style="margin-top:16px">${t}</label><input id="ts_${k}" value="${esc(S.tpl[k].s)}"><textarea id="tb_${k}">${esc(S.tpl[k].b)}</textarea>`).join('')}
+   <button class="link u m" id="tplReset">Standardtexte wiederherstellen</button></section>
+  <section class="sec"><h2>Studiengänge</h2><p class="f">Doppelte Schreibweisen zusammenführen. Die Regel gilt auch für alle späteren Importe.</p>
+   ${(()=>{const c={};S.apps.forEach(a=>{if(a.sg)c[a.sg]=(c[a.sg]||0)+1});const names=Object.keys(c).sort((x,y)=>x.localeCompare(y,'de'));
+     return names.length?`<div class="list">${names.map(n=>`<div class="att"><span>${esc(n)} <span class="m">${c[n]}</span></span><select class="mrg" data-from="${esc(n)}" style="width:auto;color:var(--muted)"><option value="">zusammenführen mit …</option>${names.filter(x=>x!==n).map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('')}</select></div>`).join('')}</div>`:'<p class="m">Noch keine Bewerbungen.</p>'})()}
+   ${Object.keys(S.sgAlias).length?`<p class="m" style="margin-top:14px">Eigene Regeln: ${Object.entries(S.sgAlias).map(([k,v])=>`${esc(k)} → ${esc(v)} <button class="link u" data-unalias="${esc(k)}">entfernen</button>`).join(' · ')}</p>`:''}</section>
+  <section class="sec"><h2>System</h2><p class="m">Version ${esc(HEALTH.version||'?')} · Mistral: ${HEALTH.mistral?'aktiv ('+esc(HEALTH.model)+')':'<span class="bad">kein API-Key in .env</span>'} · Apple Mail: ${HEALTH.mac?'verfügbar':'<span class="bad">nur auf dem Mac</span>'}</p></section>
+  <section class="sec"><h2>Daten</h2>
+   <p class="m">Alles liegt nur auf diesem Mac im Ordner <b>data</b> der App, mit täglichen Sicherungen der letzten 14 Tage.</p>
+   <div class="actions" style="margin-bottom:22px"><button class="btn" id="csv">Liste als CSV</button><button class="btn" id="json">Sicherung als JSON</button><button class="btn" id="newRound">Neue Runde beginnen</button></div>
+   <p class="m">Nach Abschluss des Kurses sollten die Bewerberdaten gelöscht werden. Das entfernt auch alle Sicherungen.</p>
+   <div style="display:flex;gap:10px;align-items:end;max-width:420px"><div style="flex:1"><label for="wipeC">Zum Löschen LÖSCHEN eintippen</label><input id="wipeC" autocomplete="off"></div><button class="btn" id="wipe" style="border-color:var(--bad);color:var(--bad)">Alle Daten löschen</button></div>
+  </section></div>`;
+  $$('#main input[data-k]').forEach(i=>i.onchange=()=>{S[i.dataset.k]=i.type==='number'?Math.max(1,parseInt(i.value)||1):i.value.trim();save();header()});
+  ['zusage','warte','absage','nach'].forEach(k=>{$('#ts_'+k).onchange=e=>{S.tpl[k].s=e.target.value;save()};$('#tb_'+k).onchange=e=>{S.tpl[k].b=e.target.value;save()}});
+  $$('.mrg').forEach(m=>m.onchange=()=>{const from=m.dataset.from,to=m.value;if(!to)return;S.sgAlias[from.toLowerCase()]=to;
+    Object.keys(S.sgAlias).forEach(k=>{if(S.sgAlias[k]===from)S.sgAlias[k]=to});S.apps.forEach(a=>{if(a.sg===from)a.sg=to});save();rSettings();toast(`${from} → ${to}`)});
+  $$('[data-unalias]').forEach(b=>b.onclick=()=>{delete S.sgAlias[b.dataset.unalias];save();rSettings()});
+  $('#tplReset').onclick=()=>{S.tpl=JSON.parse(JSON.stringify(DEFAULT_TPL));save();rSettings();toast('Standardtexte wiederhergestellt')};
+  const stamp=new Date().toISOString().slice(0,10);
+  $('#csv').onclick=()=>download(`${S.kurs}-${stamp}.csv`,csv([['Status','Wartelistenplatz','Vorname','Nachname','E-Mail','Studiengang','Abschluss','Semester','Geschlecht (geschätzt)','Eingang','Mail','Erste Sitzung','Nachrücker','Motivation'],
+    ...['zusage','warte','absage','offen'].flatMap(st=>byStatus(st).map((a,i)=>[SN[st],st==='warte'?i+1:'',a.vn,a.nn,a.email,a.sg,a.abschluss,a.sem??'',a.g,a.date,a.mail||'',a.anwesend===true?'da':a.anwesend===false?'nicht da':'',a.nachruecker?'ja':'',a.mot]))]),'text/csv;charset=utf-8');
+  $('#json').onclick=()=>download(`${S.kurs}-sicherung-${stamp}.json`,JSON.stringify(S,null,1),'application/json');
+  $('#newRound').onclick=()=>{const b=$('#newRound');if(!b.dataset.c){b.dataset.c=1;b.textContent='Alle Bewerbungen entfernen? Nochmal klicken';return}
+    download(`${S.kurs}-sicherung-${stamp}.json`,JSON.stringify(S,null,1),'application/json');S.apps=[];S.demo=false;hist=[];lastImport=null;save();tab='import';saveUi();render();toast('Sicherung heruntergeladen, neue Runde begonnen',4000)};
+  $('#wipe').onclick=async()=>{if($('#wipeC').value!=='LÖSCHEN'){toast('Bitte LÖSCHEN eintippen');return}
+    try{clearTimeout(saveTimer);dirty=false;await api('/api/wipe',{method:'POST',body:JSON.stringify({confirm:'LÖSCHEN'})});REV=0;S=emptyState();hist=[];lastImport=null;tab='import';saveUi();render();toast('Alle Daten gelöscht')}catch(e){toast(e.message)}};
+}
+
+/* ---------- demo data ---------- */
+function demoApps(){
+  const NACH=['Huber','Müller','Schmid','Wagner','Bauer','Fischer','Weber','Becker','Hoffmann','Koch','Richter','Klein','Wolf','Schröder','Neumann','Schwarz','Zimmermann','Braun','Krüger','Hofmann','Yılmaz','Kaya','Nguyen','Rossi','Novak','Sharma','Popescu','Lindner','Gruber','Mayr'];
+  const MOT=['Ich habe eine Idee für eine App gegen Lebensmittelverschwendung in Mensen und will lernen, wie ich sie validiere.','Ich möchte nach dem Studium gründen und suche Methoden, um Geschäftsideen strukturiert zu testen.','Mein Team und ich bauen gerade einen Prototyp für nachhaltige Verpackungen. Uns fehlt das Business-Wissen, vor allem bei Preisgestaltung und Vertrieb.','Ich interessiere mich für Startups.','Ich arbeite neben dem Studium in einem Startup und will die Methoden dahinter verstehen.','Ich will herausfinden, ob Gründen etwas für mich ist, bevor ich mich für einen Job entscheide. Die Start-up Challenge scheint mir dafür genau der richtige Rahmen zu sein.','Wir entwickeln ein KI-Tool für Hausarztpraxen und brauchen Unterstützung bei Markt und Finanzierung.','Ich möchte meine technischen Kenntnisse mit unternehmerischem Denken verbinden.','Meine Familie hat einen Betrieb, den ich digitalisieren und irgendwann übernehmen möchte.','Ich will lernen, Ideen überzeugend zu pitchen, und brauche dafür echtes Feedback.'];
+  const SG=['BWL','BWL','BWL','Wirtschaftsinformatik','Wirtschaftsinformatik','Informatik','Informatik','Global Business Management','Medien und Kommunikation','Wirtschaftsingenieurwesen','Data Science','VWL','Rechtswissenschaft','Materialwissenschaft'];
+  let s=1410;const r=()=>{s|=0;s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296};const pick=a=>a[Math.floor(r()*a.length)];
+  const out=[],used=new Set();
+  for(let i=0;i<50;i++){let vn,nn;do{const x=r();vn=x<.47?pick(FEM.slice(0,24)):x<.92?pick(MAL.slice(0,24)):pick(AMB.slice(0,6));nn=pick(NACH)}while(used.has(vn+nn));used.add(vn+nn);
+    const master=r()<.38,sem=master?1+Math.floor(r()*4):1+Math.floor(r()*8),sg=pick(SG),mot=pick(MOT);
+    out.push({...blank(),id:'d'+i,vn,nn,email:`${vn}.${nn}@beispiel.invalid`.toLowerCase().replace(/[^a-z.@]/g,''),sg,abschluss:master?'Master':'Bachelor',sem,g:guessGender(vn),mot,date:`2026-10-${String(1+Math.floor(r()*10)).padStart(2,'0')}`,order:i,mailFrom:`${vn} ${nn}`,mailSubject:'Bewerbung Start-up Challenge',mailFull:`Hallo liebes Team,\n\nich heiße ${vn} ${nn} und studiere ${sg} im ${sem}. Semester (${master?'Master':'Bachelor'}).\n\nMotivation: ${mot}\n\nViele Grüße\n${vn}\n\n(Beispieldaten)`})}
+  return out;
+}
+
+/* ---------- boot ---------- */
+(async()=>{
+  try{HEALTH=await api('/api/health');const st=await api('/api/state');REV=st.rev||0;S=normalize(st.data)}
+  catch(e){$('#main').innerHTML=`<p class="bad">Der lokale Server antwortet nicht. Bitte die App über „Start.command" starten.</p>`;return}
+  if(!S.apps.length&&tab!=='einstellungen')tab='import';
+  render();
+})();
+</script>
+</body>
+</html>

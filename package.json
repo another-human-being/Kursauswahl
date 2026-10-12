@@ -1,0 +1,11 @@
+{
+  "name": "kursauswahl",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Bewerbungsauswahl für Lehrveranstaltungen des Gründungszentrums, lokal auf dem Mac",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test/smoke.js"
+  },
+  "engines": { "node": ">=18" }
+}

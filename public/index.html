@@ -38,7 +38,7 @@ textarea{border:1px solid var(--rule);padding:8px;resize:vertical}
 input:focus,textarea:focus,select:focus{outline:0;border-color:var(--fg)}
 label{display:block;color:var(--muted);margin-bottom:2px}
 .list{border-top:1px solid var(--rule)}
-.li{display:grid;grid-template-columns:5.2rem minmax(0,1fr) auto;gap:12px;padding:7px 4px;border-bottom:1px solid var(--rule);cursor:pointer;align-items:baseline}
+.li{display:grid;grid-template-columns:6.6rem minmax(0,1fr) auto;gap:12px;padding:7px 4px;border-bottom:1px solid var(--rule);cursor:pointer;align-items:baseline}
 .li:hover{background:var(--hover)}
 .li .x{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tag{color:var(--muted);white-space:nowrap} .tag.bad{color:var(--bad)}
@@ -138,6 +138,10 @@ footer{margin-top:60px;color:var(--faint);display:flex;gap:22px}
 .notes{margin-top:18px}
 .notes textarea{min-height:90px;border-color:var(--fg)}
 .note{color:var(--fg)}
+.star{font:inherit;background:none;border:0;padding:0 2px;cursor:pointer;color:var(--faint);line-height:1}
+.star.on{color:var(--fg)}
+.star:hover{color:var(--fg)}
+.star.big{font-size:22px;vertical-align:2px}
 .info{font-size:12px;border:1px solid var(--fg);padding:0 5px;white-space:nowrap;color:var(--fg)}
 .info.big{display:inline-block;font-size:13px;margin:2px 0 6px;padding:1px 7px}
 .ph{display:inline-block;object-fit:cover;background:var(--hover);vertical-align:middle}
@@ -599,8 +603,8 @@ function rImport(){
   <p class="howto">${F().letters?'PDF-Anhänge (Motivations- und Empfehlungsschreiben) werden automatisch übernommen und ausgelesen. ':F().docs?'PDF-Anhänge werden automatisch übernommen. Steht die Motivation nur im Anhang, wird sie von dort übernommen. ':''}Apple Mail: Ordner mit den Bewerbungen auswählen, <b>Postfach › Postfach exportieren …</b>, den exportierten Ordner hier ablegen. Oder Mails markieren und direkt hierher ziehen. Bereits importierte Absender werden übersprungen. Die Mails werden im Browser gelesen, nur der Text geht zum Auslesen an Mistral.</p>
   ${lastImport?`<p style="margin:-14px 0 26px">${lastImport.n} importiert${lastImport.dup?` · ${lastImport.dup} schon vorhanden`:''}${lastImport.docs?` · bei ${lastImport.docs} davon Anhänge nachgeladen`:''}${lastImport.check?` · <span class="bad">${lastImport.check} prüfen</span>`:''}${lastImport.skip?` · ${lastImport.skip} Dateien ignoriert`:''}${lastImport.err?`<br><span class="bad">Mistral-Fehler: ${esc(lastImport.err)}</span>`:''}</p>`:''}
   <details><summary>Mailtext einfügen</summary><textarea id="raw" style="min-height:140px;margin-top:10px" placeholder="Absender und Text der Mail hier einfügen"></textarea><div style="margin-top:8px"><button class="btn" id="addRaw">Übernehmen</button></div></details>
-  ${S.apps.length?`<div style="display:flex;justify-content:space-between;margin-bottom:6px"><span>${S.apps.length} Bewerbungen</span><span class="${flagged.length?'bad':'m'}">${flagged.length?flagged.length+' prüfen':'alles geprüft'}</span></div>
-  <div class="list">${list.map(a=>`<div class="li" data-id="${a.id}"><span class="m">${d6(a.date)}</span><span class="x">${photoTag(a.id,'th')}${fullName(a)} <span class="m">${meta(a)} · ${a.g}</span> ${infoBadge(a)}${a.notes&&a.notes.trim()?' <span class="note" title="hat Notizen">✎</span>':''}</span><span class="tag ${a.flags.length?'bad':''}">${a.flags.length?esc(a.flags[0])+(a.flags.length>1?' +'+(a.flags.length-1):''):''}</span></div>`).join('')}</div>`
+  ${S.apps.length?`<div style="display:flex;justify-content:space-between;margin-bottom:6px"><span>${S.apps.length} Bewerbungen${S.apps.some(a=>a.fav)?` · ${S.apps.filter(a=>a.fav).length} ★`:''}</span><span class="${flagged.length?'bad':'m'}">${flagged.length?flagged.length+' prüfen':'alles geprüft'}</span></div>
+  <div class="list">${list.map(a=>`<div class="li" data-id="${a.id}"><span class="m"><button class="star ${a.fav?'on':''}" data-fav="${a.id}" title="${a.fav?'Favorit entfernen':'Als Favorit markieren'}" aria-pressed="${!!a.fav}">${a.fav?'★':'☆'}</button> ${d6(a.date)}</span><span class="x">${photoTag(a.id,'th')}${fullName(a)} <span class="m">${meta(a)} · ${a.g}</span> ${infoBadge(a)}${a.notes&&a.notes.trim()?' <span class="note" title="hat Notizen">✎</span>':''}</span><span class="tag ${a.flags.length?'bad':''}">${a.flags.length?esc(a.flags[0])+(a.flags.length>1?' +'+(a.flags.length-1):''):''}</span></div>`).join('')}</div>`
   :`<p class="m">Noch keine Bewerbungen. <button class="link u" id="demo">Mit Beispieldaten ausprobieren</button></p>`}${F().info?infoSection():''}</div>`;
   const dz=$('#drop');
   dz.onclick=()=>{if(!busy)$('#file').click()};dz.onkeydown=e=>{if(e.key==='Enter'&&!busy)$('#file').click()};
@@ -630,7 +634,7 @@ function rSwipe(){
    <div class="sw-top"><span>${done} / ${total}</span><span><span class="${ja>P()?'bad':''}">${ja} ja</span> · ${sp} später · ${nein} nein</span></div><div class="bar"><span style="width:${total?done/total*100:0}%"></span></div>
    ${a?`<div class="stack">${q[1]?'<div class="scard back"></div>':''}<div class="scard" id="sc">
      <span class="stamp" id="stamp"></span>
-     <div class="sc-head"><div class="sc-ph" id="scPh" title="Foto hierher ziehen oder mit ⌘V einfügen">${PHOTOS[a.id]?photoTag(a.id,'fill'):'<span>Foto</span>'}</div><div><div class="sc-name">${fullName(a)}</div>${a.info===true?'<div class="info big">war bei der Infoveranstaltung</div>':''}<div class="sc-meta">${esc(a.sg||'Studiengang unklar')} · ${esc(a.abschluss||'?')} · ${a.sem??'?'}. Semester</div></div></div>
+     <div class="sc-head"><div class="sc-ph" id="scPh" title="Foto hierher ziehen oder mit ⌘V einfügen">${PHOTOS[a.id]?photoTag(a.id,'fill'):'<span>Foto</span>'}</div><div><div class="sc-name">${fullName(a)} <button class="star big ${a.fav?'on':''}" data-fav="${a.id}" title="Favorit">${a.fav?'★':'☆'}</button></div>${a.info===true?'<div class="info big">war bei der Infoveranstaltung</div>':''}<div class="sc-meta">${esc(a.sg||'Studiengang unklar')} · ${esc(a.abschluss||'?')} · ${a.sem??'?'}. Semester</div></div></div>
      ${F().letters&&recCount(a)?`<p class="recs">${recCount(a)} Empfehlungsschreiben${filesOf(a.id).filter(f=>f.kind==='empfehlung'&&authorOf(f)).length?': '+filesOf(a.id).filter(f=>f.kind==='empfehlung').map(f=>esc(authorOf(f)||'unbekannt')).join(' · '):''}</p>`:''}
      <p class="sc-mot${F().letters?' long':''}">${esc(a.mot)||`<span class="m">${F().letters?'Kein Motivationsschreiben erkannt.':'Keine Motivation erkannt.'}</span>`}</p>
      ${docsLine(a)}
@@ -674,7 +678,7 @@ function rBoard(){
   if($('#goSw'))$('#goSw').onclick=()=>{sub='durchgang';saveUi();rAuswahl()};
   wireDnD();
 }
-function card(a,pos,full){return `<div class="card" draggable="true" data-id="${a.id}" tabindex="0"><div class="top"><span class="nm">${pos?`<span class="m">${pos}&nbsp;&nbsp;</span>`:''}${photoTag(a.id,'th')}${fullName(a)}</span><span class="mt">${a.notes&&a.notes.trim()?'<span class="note" title="hat Notizen">✎</span> ':''}${infoBadge(a)}${F().letters&&recCount(a)?`<span class="info">${recCount(a)} Empf.</span> `:''} ${meta(a)}</span></div>${full?`<div class="mot">${esc(a.mot)}</div>`:''}</div>`}
+function card(a,pos,full){return `<div class="card" draggable="true" data-id="${a.id}" tabindex="0"><div class="top"><span class="nm">${pos?`<span class="m">${pos}&nbsp;&nbsp;</span>`:''}${a.fav?'<span class="star on">★</span> ':''}${photoTag(a.id,'th')}${fullName(a)}</span><span class="mt">${a.notes&&a.notes.trim()?'<span class="note" title="hat Notizen">✎</span> ':''}${infoBadge(a)}${F().letters&&recCount(a)?`<span class="info">${recCount(a)} Empf.</span> `:''} ${meta(a)}</span></div>${full?`<div class="mot">${esc(a.mot)}</div>`:''}</div>`}
 let dragId=null;
 function wireDnD(){
   $$('.card').forEach(c=>{c.ondragstart=e=>{dragId=c.dataset.id;c.classList.add('dragging');e.dataTransfer.effectAllowed='move';try{e.dataTransfer.setData('text/plain',dragId)}catch(_){}};
@@ -704,6 +708,7 @@ function openPhoto(id){const a=[...S.apps,...OTHER].find(x=>x.id===id);const L=$
   L.innerHTML=`<div class="rd lb" role="dialog" aria-label="Foto" tabindex="-1"><figure><img class="lbimg" data-ph="${esc(id)}" alt="${a?fullName(a):''}"><figcaption>${a?fullName(a):''}<button class="link m" id="lbClose">schließen</button></figcaption></figure></div>`;
   const close=()=>{L.innerHTML='';document.removeEventListener('keydown',k,true)};const k=e=>{if(e.key==='Escape'){e.stopPropagation();e.preventDefault();close()}};
   document.addEventListener('keydown',k,true);L.querySelector('.rd').onclick=close;L.querySelector('.rd').focus()}
+document.addEventListener('click',e=>{const st=e.target.closest&&e.target.closest('[data-fav]');if(st){e.preventDefault();e.stopPropagation();const a=S.apps.find(x=>x.id===st.dataset.fav);if(a){a.fav=!a.fav;save();softRender();if(sel===a.id)rSheet()}return}},true);
 document.addEventListener('click',e=>{const ph=e.target.closest&&e.target.closest('img.ph[data-ph]');if(ph){e.preventDefault();e.stopPropagation();openPhoto(ph.dataset.ph);return}},true);
 document.addEventListener('click',e=>{const o=e.target.closest&&e.target.closest('[data-open]');if(o){e.preventDefault();sel=o.dataset.open;rSheet();return}const b=e.target.closest&&e.target.closest('[data-pdf]');if(b){e.preventDefault();e.stopPropagation();openPdf(b.dataset.pdf)}},true);
 
@@ -733,6 +738,7 @@ function rSheet(){
     <div><label for="eVn">Vorname</label><input id="eVn" value="${esc(a.vn)}"></div><div><label for="eNn">Nachname</label><input id="eNn" value="${esc(a.nn)}"></div>
     <div class="full"><label for="eEm">E-Mail</label><input id="eEm" value="${esc(a.email)}"></div></div>
   ${F().info?`<p style="margin-top:12px"><label style="display:inline;color:var(--fg)"><input type="checkbox" id="eInfo" style="width:auto;margin-right:8px" ${a.info===true?'checked':''}>bei der Infoveranstaltung</label></p>`:''}
+  <p style="margin:10px 0 0"><button class="star ${a.fav?'on':''}" data-fav="${a.id}">${a.fav?'★ Favorit':'☆ als Favorit markieren'}</button></p>
   <div class="notes"><label for="eNotes">Notizen</label><textarea id="eNotes" placeholder="Eindrücke, Rückfragen, Absprachen im Team …">${esc(a.notes||'')}</textarea>${a.notesBy?`<p class="f">zuletzt geändert ${esc(a.notesBy)}</p>`:''}</div>
   <div class="st">${Object.keys(SN).map(s=>`<button class="link ${a.status===s?'on':''}" data-s="${s}">${SN[s]}</button>`).join('')}</div>
   <div class="fields">
@@ -878,8 +884,8 @@ function rSettings(){
   $$('[data-unalias]').forEach(b=>b.onclick=()=>{delete S.sgAlias[b.dataset.unalias];save();rSettings()});
   $('#tplReset').onclick=()=>{S.tpl=JSON.parse(JSON.stringify(DEFAULT_TPL));save();rSettings();toast('Standardtexte wiederhergestellt')};
   const stamp=new Date().toISOString().slice(0,10);
-  $('#csv').onclick=()=>download(`${S.kurs}-${stamp}.csv`,csv([['Status','Wartelistenplatz','Vorname','Nachname','E-Mail','Studiengang','Abschluss','Semester','Geschlecht (geschätzt)','Infoveranstaltung','Empfehlungen','Eingang','Mail','Erste Sitzung','Nachrücker','Motivation','Notizen'],
-    ...['zusage','warte','absage','offen'].flatMap(st=>byStatus(st).map((a,i)=>[SN[st],st==='warte'?i+1:'',a.vn,a.nn,a.email,a.sg,a.abschluss,a.sem??'',a.g,a.info===true?'ja':a.info===false?'nein':'',filesOf(a.id).filter(f=>f.kind==='empfehlung').map(f=>authorOf(f)||f.name).join(' | '),a.date,a.mail||'',a.anwesend===true?'da':a.anwesend===false?'nicht da':'',a.nachruecker?'ja':'',a.mot,a.notes||'']))]),'text/csv;charset=utf-8');
+  $('#csv').onclick=()=>download(`${S.kurs}-${stamp}.csv`,csv([['Status','Wartelistenplatz','Vorname','Nachname','E-Mail','Studiengang','Abschluss','Semester','Geschlecht (geschätzt)','Infoveranstaltung','Empfehlungen','Favorit','Eingang','Mail','Erste Sitzung','Nachrücker','Motivation','Notizen'],
+    ...['zusage','warte','absage','offen'].flatMap(st=>byStatus(st).map((a,i)=>[SN[st],st==='warte'?i+1:'',a.vn,a.nn,a.email,a.sg,a.abschluss,a.sem??'',a.g,a.info===true?'ja':a.info===false?'nein':'',filesOf(a.id).filter(f=>f.kind==='empfehlung').map(f=>authorOf(f)||f.name).join(' | '),a.fav?'ja':'',a.date,a.mail||'',a.anwesend===true?'da':a.anwesend===false?'nicht da':'',a.nachruecker?'ja':'',a.mot,a.notes||'']))]),'text/csv;charset=utf-8');
   $('#json').onclick=()=>download(`${S.kurs}-sicherung-${stamp}.json`,JSON.stringify(S,null,1),'application/json');
   $('#tCopy').onclick=()=>{const v=$('#tLink').value;navigator.clipboard.writeText(v).then(()=>toast('Teamlink kopiert'),()=>{$('#tLink').select();toast('Markiert, mit ⌘C kopieren')})};
   $('#tNew').onclick=async()=>{const b=$('#tNew');if(!b.dataset.c){b.dataset.c=1;b.textContent='Wirklich? Alle müssen den neuen Link bekommen. Nochmal klicken';return}

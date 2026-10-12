@@ -135,6 +135,9 @@ kbd{font:inherit;color:var(--faint);margin-left:6px}
 #offline{position:fixed;top:0;left:0;right:0;background:var(--bad);color:#fff;padding:6px 20px;z-index:20}
 footer{margin-top:60px;color:var(--faint);display:flex;gap:22px}
 .btn.small{padding:3px 9px;font-size:13px}
+.notes{margin-top:18px}
+.notes textarea{min-height:90px;border-color:var(--fg)}
+.note{color:var(--fg)}
 .info{font-size:12px;border:1px solid var(--fg);padding:0 5px;white-space:nowrap;color:var(--fg)}
 .info.big{display:inline-block;font-size:13px;margin:2px 0 6px;padding:1px 7px}
 .ph{display:inline-block;object-fit:cover;background:var(--hover);vertical-align:middle}
@@ -597,7 +600,7 @@ function rImport(){
   ${lastImport?`<p style="margin:-14px 0 26px">${lastImport.n} importiert${lastImport.dup?` · ${lastImport.dup} schon vorhanden`:''}${lastImport.docs?` · bei ${lastImport.docs} davon Anhänge nachgeladen`:''}${lastImport.check?` · <span class="bad">${lastImport.check} prüfen</span>`:''}${lastImport.skip?` · ${lastImport.skip} Dateien ignoriert`:''}${lastImport.err?`<br><span class="bad">Mistral-Fehler: ${esc(lastImport.err)}</span>`:''}</p>`:''}
   <details><summary>Mailtext einfügen</summary><textarea id="raw" style="min-height:140px;margin-top:10px" placeholder="Absender und Text der Mail hier einfügen"></textarea><div style="margin-top:8px"><button class="btn" id="addRaw">Übernehmen</button></div></details>
   ${S.apps.length?`<div style="display:flex;justify-content:space-between;margin-bottom:6px"><span>${S.apps.length} Bewerbungen</span><span class="${flagged.length?'bad':'m'}">${flagged.length?flagged.length+' prüfen':'alles geprüft'}</span></div>
-  <div class="list">${list.map(a=>`<div class="li" data-id="${a.id}"><span class="m">${d6(a.date)}</span><span class="x">${photoTag(a.id,'th')}${fullName(a)} <span class="m">${meta(a)} · ${a.g}</span> ${infoBadge(a)}</span><span class="tag ${a.flags.length?'bad':''}">${a.flags.length?esc(a.flags[0])+(a.flags.length>1?' +'+(a.flags.length-1):''):''}</span></div>`).join('')}</div>`
+  <div class="list">${list.map(a=>`<div class="li" data-id="${a.id}"><span class="m">${d6(a.date)}</span><span class="x">${photoTag(a.id,'th')}${fullName(a)} <span class="m">${meta(a)} · ${a.g}</span> ${infoBadge(a)}${a.notes&&a.notes.trim()?' <span class="note" title="hat Notizen">✎</span>':''}</span><span class="tag ${a.flags.length?'bad':''}">${a.flags.length?esc(a.flags[0])+(a.flags.length>1?' +'+(a.flags.length-1):''):''}</span></div>`).join('')}</div>`
   :`<p class="m">Noch keine Bewerbungen. <button class="link u" id="demo">Mit Beispieldaten ausprobieren</button></p>`}${F().info?infoSection():''}</div>`;
   const dz=$('#drop');
   dz.onclick=()=>{if(!busy)$('#file').click()};dz.onkeydown=e=>{if(e.key==='Enter'&&!busy)$('#file').click()};
@@ -671,7 +674,7 @@ function rBoard(){
   if($('#goSw'))$('#goSw').onclick=()=>{sub='durchgang';saveUi();rAuswahl()};
   wireDnD();
 }
-function card(a,pos,full){return `<div class="card" draggable="true" data-id="${a.id}" tabindex="0"><div class="top"><span class="nm">${pos?`<span class="m">${pos}&nbsp;&nbsp;</span>`:''}${photoTag(a.id,'th')}${fullName(a)}</span><span class="mt">${infoBadge(a)}${F().letters&&recCount(a)?`<span class="info">${recCount(a)} Empf.</span> `:''} ${meta(a)}</span></div>${full?`<div class="mot">${esc(a.mot)}</div>`:''}</div>`}
+function card(a,pos,full){return `<div class="card" draggable="true" data-id="${a.id}" tabindex="0"><div class="top"><span class="nm">${pos?`<span class="m">${pos}&nbsp;&nbsp;</span>`:''}${photoTag(a.id,'th')}${fullName(a)}</span><span class="mt">${a.notes&&a.notes.trim()?'<span class="note" title="hat Notizen">✎</span> ':''}${infoBadge(a)}${F().letters&&recCount(a)?`<span class="info">${recCount(a)} Empf.</span> `:''} ${meta(a)}</span></div>${full?`<div class="mot">${esc(a.mot)}</div>`:''}</div>`}
 let dragId=null;
 function wireDnD(){
   $$('.card').forEach(c=>{c.ondragstart=e=>{dragId=c.dataset.id;c.classList.add('dragging');e.dataTransfer.effectAllowed='move';try{e.dataTransfer.setData('text/plain',dragId)}catch(_){}};
@@ -730,6 +733,7 @@ function rSheet(){
     <div><label for="eVn">Vorname</label><input id="eVn" value="${esc(a.vn)}"></div><div><label for="eNn">Nachname</label><input id="eNn" value="${esc(a.nn)}"></div>
     <div class="full"><label for="eEm">E-Mail</label><input id="eEm" value="${esc(a.email)}"></div></div>
   ${F().info?`<p style="margin-top:12px"><label style="display:inline;color:var(--fg)"><input type="checkbox" id="eInfo" style="width:auto;margin-right:8px" ${a.info===true?'checked':''}>bei der Infoveranstaltung</label></p>`:''}
+  <div class="notes"><label for="eNotes">Notizen</label><textarea id="eNotes" placeholder="Eindrücke, Rückfragen, Absprachen im Team …">${esc(a.notes||'')}</textarea>${a.notesBy?`<p class="f">zuletzt geändert ${esc(a.notesBy)}</p>`:''}</div>
   <div class="st">${Object.keys(SN).map(s=>`<button class="link ${a.status===s?'on':''}" data-s="${s}">${SN[s]}</button>`).join('')}</div>
   <div class="fields">
     <div class="full"><label for="eSg">Studiengang</label><input id="eSg" list="sgList" value="${esc(a.sg)}"><datalist id="sgList">${sgs.map(s=>`<option value="${esc(s)}">`).join('')}</datalist></div>
@@ -745,6 +749,7 @@ function rSheet(){
   </aside>`;
   const close=()=>{sel=null;render()};
   $('#openMail').onclick=()=>openMail(a.id);
+  $('#eNotes').oninput=e=>{a.notes=e.target.value;a.notesBy=new Date().toLocaleString('de-DE',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});save()};
   if($('#addPdf')){$('#addPdf').onclick=()=>$('#pdfFile').click();$('#pdfFile').onchange=async e=>{for(const file of e.target.files){toast(`${file.name} wird gelesen …`,2500);
       try{const b64=await new Promise((res,rej)=>{const fr=new FileReader();fr.onload=()=>res(String(fr.result).split(',')[1]);fr.onerror=()=>rej(new Error('Datei nicht lesbar'));fr.readAsDataURL(file)});
         const f=await addPdf(a,file.name,b64);if(f.kind==='motivation'&&(!a.mot||a.flags.includes('Motivation fehlt')||F().letters)){a.mot=(f.meta.text||a.mot||'').trim();a.flags=a.flags.filter(x=>!/^Motivation/.test(x));save()}toast(`${file.name}: ${KIND_LABEL[f.kind]}`)}
@@ -873,8 +878,8 @@ function rSettings(){
   $$('[data-unalias]').forEach(b=>b.onclick=()=>{delete S.sgAlias[b.dataset.unalias];save();rSettings()});
   $('#tplReset').onclick=()=>{S.tpl=JSON.parse(JSON.stringify(DEFAULT_TPL));save();rSettings();toast('Standardtexte wiederhergestellt')};
   const stamp=new Date().toISOString().slice(0,10);
-  $('#csv').onclick=()=>download(`${S.kurs}-${stamp}.csv`,csv([['Status','Wartelistenplatz','Vorname','Nachname','E-Mail','Studiengang','Abschluss','Semester','Geschlecht (geschätzt)','Infoveranstaltung','Empfehlungen','Eingang','Mail','Erste Sitzung','Nachrücker','Motivation'],
-    ...['zusage','warte','absage','offen'].flatMap(st=>byStatus(st).map((a,i)=>[SN[st],st==='warte'?i+1:'',a.vn,a.nn,a.email,a.sg,a.abschluss,a.sem??'',a.g,a.info===true?'ja':a.info===false?'nein':'',filesOf(a.id).filter(f=>f.kind==='empfehlung').map(f=>authorOf(f)||f.name).join(' | '),a.date,a.mail||'',a.anwesend===true?'da':a.anwesend===false?'nicht da':'',a.nachruecker?'ja':'',a.mot]))]),'text/csv;charset=utf-8');
+  $('#csv').onclick=()=>download(`${S.kurs}-${stamp}.csv`,csv([['Status','Wartelistenplatz','Vorname','Nachname','E-Mail','Studiengang','Abschluss','Semester','Geschlecht (geschätzt)','Infoveranstaltung','Empfehlungen','Eingang','Mail','Erste Sitzung','Nachrücker','Motivation','Notizen'],
+    ...['zusage','warte','absage','offen'].flatMap(st=>byStatus(st).map((a,i)=>[SN[st],st==='warte'?i+1:'',a.vn,a.nn,a.email,a.sg,a.abschluss,a.sem??'',a.g,a.info===true?'ja':a.info===false?'nein':'',filesOf(a.id).filter(f=>f.kind==='empfehlung').map(f=>authorOf(f)||f.name).join(' | '),a.date,a.mail||'',a.anwesend===true?'da':a.anwesend===false?'nicht da':'',a.nachruecker?'ja':'',a.mot,a.notes||'']))]),'text/csv;charset=utf-8');
   $('#json').onclick=()=>download(`${S.kurs}-sicherung-${stamp}.json`,JSON.stringify(S,null,1),'application/json');
   $('#tCopy').onclick=()=>{const v=$('#tLink').value;navigator.clipboard.writeText(v).then(()=>toast('Teamlink kopiert'),()=>{$('#tLink').select();toast('Markiert, mit ⌘C kopieren')})};
   $('#tNew').onclick=async()=>{const b=$('#tNew');if(!b.dataset.c){b.dataset.c=1;b.textContent='Wirklich? Alle müssen den neuen Link bekommen. Nochmal klicken';return}

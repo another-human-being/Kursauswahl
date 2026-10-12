@@ -128,6 +128,21 @@ kbd{font:inherit;color:var(--faint);margin-left:6px}
 .toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:6px 14px;max-width:90vw;z-index:10}
 #offline{position:fixed;top:0;left:0;right:0;background:var(--bad);color:#fff;padding:6px 20px;z-index:20}
 footer{margin-top:60px;color:var(--faint);display:flex;gap:22px}
+.btn.small{padding:3px 9px;font-size:13px}
+.ph{display:inline-block;object-fit:cover;background:var(--hover);vertical-align:middle}
+.ph.th{width:24px;height:24px;border-radius:50%;margin-right:8px;vertical-align:-6px}
+.ph.th.lg{width:34px;height:34px;vertical-align:-11px}
+.ph.fill{width:100%;height:100%;display:block}
+.sc-head{display:flex;gap:18px;align-items:flex-start;margin-bottom:22px}
+.sc-head .sc-meta{margin-bottom:0}
+.sc-ph{width:104px;height:104px;flex:none;border:1px dashed var(--rule);display:grid;place-items:center;color:var(--faint);font-size:12px;overflow:hidden}
+.sc-ph:has(img){border-style:solid}
+.scard.over .sc-ph{border-color:var(--fg);color:var(--fg)}
+.phrow{display:grid;grid-template-columns:150px minmax(0,1fr);gap:16px;margin-top:18px;align-items:start}
+.phbox{width:150px;height:150px;border:1px dashed var(--rule);display:grid;place-items:center;text-align:center;color:var(--muted);font-size:12px;cursor:pointer;overflow:hidden;line-height:1.5}
+.phbox:has(img){border-style:solid}
+.phbox.over{border-color:var(--fg);color:var(--fg)}
+@media (max-width:420px){.phrow{grid-template-columns:1fr}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -147,7 +162,7 @@ footer{margin-top:60px;color:var(--faint);display:flex;gap:22px}
 </div>
 <div id="layer"></div>
 <div id="reader"></div>
-<div id="offline" hidden>Keine Verbindung zum lokalen Server. Änderungen werden nicht gespeichert. Läuft das Startfenster noch?</div>
+<div id="offline" hidden>Keine Verbindung zum Server. Änderungen werden gespeichert, sobald die Verbindung wieder da ist.</div>
 
 <script>
 'use strict';
@@ -183,26 +198,107 @@ absage:{s:'Deine Bewerbung: {kurs}',b:'Hallo {vorname},\n\nvielen Dank für dein
 nach:{s:'Ein Platz ist frei: {kurs}',b:'Hallo {vorname},\n\nin der „{kurs}" ist ein Platz frei geworden, und du bist als Nächste:r auf der Warteliste dran.\n\nDie nächste Sitzung ist am {termin2} ({ort}). Komm einfach vorbei. Falls du keine Zeit mehr hast, sag uns bitte bis morgen Bescheid.\n\nViele Grüße\n{absender}'}};
 function emptyState(){return{apps:[],sgAlias:{},demo:false,kurs:'Start-up Challenge',semester:'WiSe 2026/27',plaetze:32,termin:'Mittwoch, 21.10.2026, 18:00 Uhr',termin2:'Mittwoch, 28.10.2026, 18:00 Uhr',ort:'Gründungszentrum',absender:'Team Gründungszentrum',senderAddr:'',tpl:JSON.parse(JSON.stringify(DEFAULT_TPL))}}
 
-/* ---------- server I/O ---------- */
-let S=null,REV=0,HEALTH={mistral:false,mac:false},saveTimer=null,saving=false,dirty=false;
+/* ---------- server I/O (Team-Betrieb) ---------- */
+let S=null,REV=0,HEALTH={mistral:false},saveTimer=null,saving=false,dirty=false,TOKEN='',EPOCH=null;
+let SHADOW=new Map(),SET_SHADOW='',PHOTOS={},JOBS=[],HELPER=null,SKEW=0,needRender=false,swipeDown=false,lastSig='';
+const SETTINGS_KEYS=['kurs','semester','plaetze','termin','termin2','ort','absender','senderAddr','tpl','sgAlias','demo'];
 async function api(path,opts={}){
-  const r=await fetch(path,{...opts,headers:{'Content-Type':'application/json','X-Kursauswahl':'1',...(opts.headers||{})}});
+  const r=await fetch(path,{...opts,headers:{'Content-Type':'application/json','X-Team-Token':TOKEN,...(opts.headers||{})}});
   let j=null;try{j=await r.json()}catch(_){}
-  if(!r.ok){const e=new Error((j&&j.error)||('HTTP '+r.status));e.status=r.status;e.body=j;throw e}
+  if(r.status===401){noAccess(j&&j.error);const e=new Error('Kein Zugang');e.status=401;throw e}
+  if(!r.ok){const e=new Error((j&&j.error)||('Fehler '+r.status));e.status=r.status;e.body=j;throw e}
   return j;
 }
-function save(){dirty=true;clearTimeout(saveTimer);saveTimer=setTimeout(flush,300)}
+function settingsOf(s){const o={};SETTINGS_KEYS.forEach(k=>o[k]=s[k]);if(EPOCH)o.epoch=EPOCH;return o}
+function save(){dirty=true;clearTimeout(saveTimer);saveTimer=setTimeout(flush,250)}
 async function flush(){
   if(saving){saveTimer=setTimeout(flush,200);return}
-  if(!dirty)return;saving=true;dirty=false;
-  try{const r=await api('/api/state',{method:'PUT',body:JSON.stringify({rev:REV,data:S})});REV=r.rev;$('#offline').hidden=true}
-  catch(e){
-    if(e.status===409){const st=await api('/api/state');REV=st.rev;S=normalize(st.data);toast('In einem anderen Fenster geändert. Neu geladen.');render()}
-    else{$('#offline').hidden=false;dirty=true;saveTimer=setTimeout(flush,3000)}
-  }finally{saving=false}
+  if(!dirty||!S)return;saving=true;dirty=false;
+  const ops=[],ids=new Set();
+  for(const a of S.apps){ids.add(a.id);const j=JSON.stringify(a);if(SHADOW.get(a.id)!==j)ops.push({id:a.id,j})}
+  for(const id of SHADOW.keys())if(!ids.has(id))ops.push({id,del:true});
+  const sj=JSON.stringify(settingsOf(S)),setChanged=sj!==SET_SHADOW;
+  try{
+    for(let i=0;i<ops.length||(i===0&&setChanged);i+=25){
+      const chunk=ops.slice(i,i+25);
+      await api('/api/ops',{method:'POST',body:JSON.stringify({apps:chunk.map(o=>o.del?{id:o.id,deleted:true}:{id:o.id,data:JSON.parse(o.j)}),...(i===0&&setChanged?{settings:JSON.parse(sj)}:{})})});
+      chunk.forEach(o=>{if(o.del)SHADOW.delete(o.id);else SHADOW.set(o.id,o.j)});
+    }
+    if(setChanged)SET_SHADOW=sj;
+    $('#offline').hidden=true;
+  }catch(e){if(e.status!==401){$('#offline').hidden=false;dirty=true;saveTimer=setTimeout(flush,3000)}}
+  finally{saving=false}
 }
-window.addEventListener('beforeunload',e=>{if(dirty){flush();e.preventDefault();e.returnValue=''}});
+window.addEventListener('beforeunload',e=>{if(dirty||saving){flush();e.preventDefault();e.returnValue=''}});
 function normalize(d){const s={...emptyState(),...(d||{})};s.tpl={...JSON.parse(JSON.stringify(DEFAULT_TPL)),...(s.tpl||{})};s.sgAlias=s.sgAlias||{};s.apps=(s.apps||[]).map(a=>({...blank(),...a,sg:canonSg(a.sg,s.sgAlias)}));return s}
+function normApp(data,id){return{...blank(),...(data||{}),id,sg:canonSg((data||{}).sg,S?S.sgAlias:{})}}
+const pending=a=>SHADOW.get(a.id)!==JSON.stringify(a);
+function applyRemote(j,full){
+  let changed=false;
+  if(j.settings){const d=j.settings.data||{};
+    if(!full&&d.epoch&&d.epoch!==EPOCH){location.reload();return false}
+    EPOCH=d.epoch||EPOCH;
+    if(full||JSON.stringify(settingsOf(S))===SET_SHADOW){const n=normalize(d);SETTINGS_KEYS.forEach(k=>S[k]=n[k]);SET_SHADOW=JSON.stringify(settingsOf(S));changed=true}
+  }
+  for(const row of j.apps||[]){const i=S.apps.findIndex(a=>a.id===row.id);
+    if(row.deleted){const pd=i>=0&&pending(S.apps[i]);if(i>=0&&!pd){S.apps.splice(i,1);changed=true}if(!pd)SHADOW.delete(row.id);continue}
+    if(i>=0&&pending(S.apps[i]))continue;
+    const a=normApp(row.data,row.id);if(i>=0)S.apps[i]=a;else S.apps.push(a);SHADOW.set(row.id,JSON.stringify(a));changed=true}
+  for(const p of j.photos||[]){PHOTOS[p.id]=p.has?p.rev:0;changed=true}
+  JOBS=j.jobs||[];HELPER=j.helperSeen||null;if(j.now)SKEW=Date.parse(j.now)-Date.now();
+  if(j.rev>REV)REV=j.rev;
+  const sig=JSON.stringify(JOBS)+helperOnline();if(sig!==lastSig){lastSig=sig;if(tab==='mails'||tab==='einstellungen')changed=true}
+  return changed;
+}
+let polling=false;
+async function poll(){
+  if(polling||document.hidden||!TOKEN||!S)return;polling=true;
+  try{const j=await api('/api/sync?since='+REV);if(applyRemote(j,false))softRender();if(!dirty)$('#offline').hidden=true}
+  catch(e){if(e.status!==401)$('#offline').hidden=false}finally{polling=false}
+}
+setInterval(poll,2500);document.addEventListener('visibilitychange',()=>{if(!document.hidden)poll()});
+function interacting(){const ae=document.activeElement;return !!(dragId||swipeDown||(ae&&/INPUT|TEXTAREA|SELECT/.test(ae.tagName)&&ae.type!=='file'))}
+function softRender(){if(interacting()){needRender=true;return}needRender=false;const y=window.scrollY;render();window.scrollTo(0,y)}
+document.addEventListener('focusout',()=>setTimeout(()=>{if(needRender)softRender()},60));
+document.addEventListener('pointerup',()=>setTimeout(()=>{if(needRender)softRender()},300));
+const helperOnline=()=>!!HELPER&&(Date.now()+SKEW-Date.parse(HELPER))<30000;
+function noAccess(msg){TOKEN='';try{localStorage.removeItem('kursauswahl-token')}catch(e){}
+  $('#tabs').hidden=true;$('#hCount').innerHTML='';$('#layer').innerHTML='';
+  $('#main').innerHTML=`<div class="col1"><p>${esc(msg||'Kein Zugang.')}</p><p class="m">Öffne den Teamlink, den du bekommen hast. Er sieht so aus: <span class="f">${esc(location.origin)}/#k=…</span></p></div>`}
+
+/* ---------- Fotos ---------- */
+const PHOTO_CACHE={};
+function photoTag(id,cls){return PHOTOS[id]?`<img class="ph ${cls||''}" data-ph="${esc(id)}" alt="">`:''}
+async function photoUrl(id){const rev=PHOTOS[id];if(!rev)return null;const c=PHOTO_CACHE[id];if(c&&c.rev===rev)return c.url;
+  const r=await fetch(`/api/photo?id=${encodeURIComponent(id)}&v=${rev}`,{headers:{'X-Team-Token':TOKEN}});if(!r.ok)return null;
+  const url=URL.createObjectURL(await r.blob());if(c&&c.url&&c.url.startsWith('blob:'))URL.revokeObjectURL(c.url);PHOTO_CACHE[id]={rev,url};return url}
+function hydratePhotos(root){(root||document).querySelectorAll('img[data-ph]:not([src])').forEach(img=>{const id=img.dataset.ph;photoUrl(id).then(u=>{if(u)img.src=u;else img.remove()}).catch(()=>{})})}
+new MutationObserver(()=>hydratePhotos()).observe(document.body,{childList:true,subtree:true});
+async function toDataUrl(src){
+  if(typeof src==='string'){if(src.startsWith('data:image/'))return src;const j=await api('/api/fetch-image',{method:'POST',body:JSON.stringify({url:src})});return j.dataUrl}
+  return await new Promise((res,rej)=>{const fr=new FileReader();fr.onload=()=>res(fr.result);fr.onerror=()=>rej(new Error('Datei nicht lesbar'));fr.readAsDataURL(src)})}
+async function shrink(dataUrl){const img=new Image();img.src=dataUrl;await img.decode();const k=Math.min(1,640/Math.max(img.naturalWidth,img.naturalHeight));
+  const c=document.createElement('canvas');c.width=Math.max(1,Math.round(img.naturalWidth*k));c.height=Math.max(1,Math.round(img.naturalHeight*k));
+  const g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);g.drawImage(img,0,0,c.width,c.height);return c.toDataURL('image/jpeg',.85)}
+async function setPhoto(id,src){
+  try{toast('Foto wird gespeichert …',1500);const d=await shrink(await toDataUrl(src));await api('/api/photo',{method:'POST',body:JSON.stringify({id,dataUrl:d})});
+    PHOTOS[id]='neu';PHOTO_CACHE[id]={rev:'neu',url:d};softRender();toast('Foto gespeichert')}
+  catch(e){if(e.status!==401)toast('Foto nicht gespeichert: '+e.message,6000)}}
+async function removePhoto(id){try{await api('/api/photo?id='+encodeURIComponent(id),{method:'DELETE'});PHOTOS[id]=0;delete PHOTO_CACHE[id];softRender()}catch(e){toast(e.message)}}
+function imageFrom(dt){
+  if(!dt)return null;const f=[...(dt.files||[])].find(x=>/^image\//.test(x.type));if(f)return f;
+  if(dt.items)for(const it of dt.items){if(it.kind==='file'&&/^image\//.test(it.type)){const g=it.getAsFile();if(g)return g}}
+  const html=dt.getData&&dt.getData('text/html');const m=html&&html.match(/<img[^>]+src="([^"]+)"/i);if(m)return m[1].replace(/&amp;/g,'&');
+  const uri=dt.getData&&((dt.getData('text/uri-list')||dt.getData('text/plain')||'').trim().split(/\s+/)[0]);
+  if(uri&&/^(https:\/\/|data:image\/)/.test(uri))return uri;return null}
+function photoTarget(){if(sel)return sel;if(tab==='auswahl'&&sub==='durchgang'){const q=S.apps.filter(a=>a.status==='offen'&&!a.seen).sort((a,b)=>a.order-b.order);return q[0]&&q[0].id}return null}
+document.addEventListener('paste',e=>{const id=photoTarget();if(!id)return;const ae=document.activeElement;
+  const img=imageFrom(e.clipboardData);if(!img)return;if(typeof img==='string'&&ae&&/INPUT|TEXTAREA/.test(ae.tagName))return;
+  e.preventDefault();setPhoto(id,img)});
+function wirePhotoDrop(el,id){if(!el)return;
+  el.addEventListener('dragover',e=>{if(dragId)return;e.preventDefault();el.classList.add('over')});
+  el.addEventListener('dragleave',()=>el.classList.remove('over'));
+  el.addEventListener('drop',e=>{if(dragId)return;e.preventDefault();e.stopPropagation();el.classList.remove('over');const img=imageFrom(e.dataTransfer);if(img)setPhoto(id,img);else toast('Kein Bild erkannt')})}
 
 /* ---------- helpers ---------- */
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
@@ -326,14 +422,14 @@ function rImport(){
   const list=S.apps.slice().sort((a,b)=>(b.flags.length>0)-(a.flags.length>0)||String(b.date).localeCompare(String(a.date)));
   $('#main').innerHTML=`<div class="col1">
   ${S.demo?`<p class="notice">Gerade sind Beispieldaten geladen. <button class="link u" id="clearDemo">Beispieldaten entfernen</button></p>`:''}
-  ${!HEALTH.mistral?`<p class="notice">Kein Mistral-Key gefunden. Ausgelesen wird mit einfachen Regeln, bitte jede Bewerbung prüfen. Key in der Datei <b>.env</b> eintragen und neu starten.</p>`:''}
+  ${!HEALTH.mistral?`<p class="notice">Kein Mistral-Key hinterlegt. Ausgelesen wird mit einfachen Regeln, bitte jede Bewerbung prüfen.</p>`:''}
   <div class="drop" id="drop" tabindex="0" role="button">Mails hier ablegen<br><span class="m">.eml, .emlx oder exportiertes Postfach (.mbox)</span></div>
   <input type="file" id="file" multiple hidden>
-  <p class="howto">Apple Mail: Ordner mit den Bewerbungen auswählen, <b>Postfach › Postfach exportieren …</b>, den exportierten Ordner hier ablegen. Oder Mails markieren und direkt hierher ziehen. Bereits importierte Absender werden übersprungen.</p>
+  <p class="howto">Apple Mail: Ordner mit den Bewerbungen auswählen, <b>Postfach › Postfach exportieren …</b>, den exportierten Ordner hier ablegen. Oder Mails markieren und direkt hierher ziehen. Bereits importierte Absender werden übersprungen. Die Mails werden im Browser gelesen, nur der Text geht zum Auslesen an Mistral.</p>
   ${lastImport?`<p style="margin:-14px 0 26px">${lastImport.n} importiert${lastImport.dup?` · ${lastImport.dup} schon vorhanden`:''}${lastImport.check?` · <span class="bad">${lastImport.check} prüfen</span>`:''}${lastImport.skip?` · ${lastImport.skip} Dateien ignoriert`:''}${lastImport.err?`<br><span class="bad">Mistral-Fehler: ${esc(lastImport.err)}</span>`:''}</p>`:''}
   <details><summary>Mailtext einfügen</summary><textarea id="raw" style="min-height:140px;margin-top:10px" placeholder="Absender und Text der Mail hier einfügen"></textarea><div style="margin-top:8px"><button class="btn" id="addRaw">Übernehmen</button></div></details>
   ${S.apps.length?`<div style="display:flex;justify-content:space-between;margin-bottom:6px"><span>${S.apps.length} Bewerbungen</span><span class="${flagged.length?'bad':'m'}">${flagged.length?flagged.length+' prüfen':'alles geprüft'}</span></div>
-  <div class="list">${list.map(a=>`<div class="li" data-id="${a.id}"><span class="m">${d6(a.date)}</span><span class="x">${fullName(a)} <span class="m">${meta(a)} · ${a.g}</span></span><span class="tag ${a.flags.length?'bad':''}">${a.flags.length?esc(a.flags[0])+(a.flags.length>1?' +'+(a.flags.length-1):''):''}</span></div>`).join('')}</div>`
+  <div class="list">${list.map(a=>`<div class="li" data-id="${a.id}"><span class="m">${d6(a.date)}</span><span class="x">${photoTag(a.id,'th')}${fullName(a)} <span class="m">${meta(a)} · ${a.g}</span></span><span class="tag ${a.flags.length?'bad':''}">${a.flags.length?esc(a.flags[0])+(a.flags.length>1?' +'+(a.flags.length-1):''):''}</span></div>`).join('')}</div>`
   :`<p class="m">Noch keine Bewerbungen. <button class="link u" id="demo">Mit Beispieldaten ausprobieren</button></p>`}</div>`;
   const dz=$('#drop');
   dz.onclick=()=>{if(!busy)$('#file').click()};dz.onkeydown=e=>{if(e.key==='Enter'&&!busy)$('#file').click()};
@@ -362,7 +458,7 @@ function rSwipe(){
    <div class="sw-top"><span>${done} / ${total}</span><span><span class="${ja>P()?'bad':''}">${ja} ja</span> · ${sp} später · ${nein} nein</span></div><div class="bar"><span style="width:${total?done/total*100:0}%"></span></div>
    ${a?`<div class="stack">${q[1]?'<div class="scard back"></div>':''}<div class="scard" id="sc">
      <span class="stamp" id="stamp"></span>
-     <div class="sc-name">${fullName(a)}</div><div class="sc-meta">${esc(a.sg||'Studiengang unklar')} · ${esc(a.abschluss||'?')} · ${a.sem??'?'}. Semester</div>
+     <div class="sc-head"><div class="sc-ph" id="scPh" title="Foto hierher ziehen oder mit ⌘V einfügen">${PHOTOS[a.id]?photoTag(a.id,'fill'):'<span>Foto</span>'}</div><div><div class="sc-name">${fullName(a)}</div><div class="sc-meta">${esc(a.sg||'Studiengang unklar')} · ${esc(a.abschluss||'?')} · ${a.sem??'?'}. Semester</div></div></div>
      <p class="sc-mot">${esc(a.mot)||'<span class="m">Keine Motivation erkannt.</span>'}</p>
      ${a.flags.length?`<p class="bad" style="margin:18px 0 0">${a.flags.map(esc).join(', ')}</p>`:''}</div></div>
    <div class="sw-btns"><button class="btn" data-d="nein">Nein<kbd>←</kbd></button><button class="btn" data-d="spaeter">Später<kbd>↓</kbd></button><button class="btn solid" data-d="ja">Ja<kbd>→</kbd></button></div>`
@@ -375,11 +471,12 @@ function rSwipe(){
     if(e.key==='ArrowRight')decide('ja');else if(e.key==='ArrowLeft')decide('nein');else if(e.key==='ArrowDown'){e.preventDefault();decide('spaeter')}else if(e.key==='z'||e.key==='Backspace')undo()};
   if(!a)return;
   $$('.sw-btns .btn').forEach(b=>b.onclick=()=>decide(b.dataset.d));
+  wirePhotoDrop($('#sc'),a.id);
   const c=$('#sc'),st=$('#stamp');let x0=null,y0=0,dx=0,dy=0;
-  c.onpointerdown=e=>{x0=e.clientX;y0=e.clientY;c.setPointerCapture(e.pointerId);c.style.transition='none'};
+  c.onpointerdown=e=>{swipeDown=true;x0=e.clientX;y0=e.clientY;c.setPointerCapture(e.pointerId);c.style.transition='none'};
   c.onpointermove=e=>{if(x0===null)return;dx=e.clientX-x0;dy=e.clientY-y0;c.style.transform=`translate(${dx}px,${dy*.3}px) rotate(${dx/20}deg)`;
     const w=Math.abs(dx)>=60?(dx>0?'ja':'nein'):dy>40?'später':'';st.textContent=w;st.className='stamp'+(w==='nein'?' bad':'');st.style.opacity=w?Math.min(1,Math.max(Math.abs(dx),dy)/110):0};
-  c.onpointerup=c.onpointercancel=()=>{if(x0===null)return;x0=null;c.style.transition='';
+  c.onpointerup=c.onpointercancel=()=>{swipeDown=false;if(x0===null)return;x0=null;c.style.transition='';
     if(dx>110)decide('ja');else if(dx<-110)decide('nein');else if(dy>110&&Math.abs(dx)<60)decide('spaeter');else{c.style.transform='';st.style.opacity=0}dx=dy=0};
 }
 function decide(d){
@@ -403,7 +500,7 @@ function rBoard(){
   if($('#goSw'))$('#goSw').onclick=()=>{sub='durchgang';saveUi();rAuswahl()};
   wireDnD();
 }
-function card(a,pos,full){return `<div class="card" draggable="true" data-id="${a.id}" tabindex="0"><div class="top"><span class="nm">${pos?`<span class="m">${pos}&nbsp;&nbsp;</span>`:''}${fullName(a)}</span><span class="mt">${meta(a)}</span></div>${full?`<div class="mot">${esc(a.mot)}</div>`:''}</div>`}
+function card(a,pos,full){return `<div class="card" draggable="true" data-id="${a.id}" tabindex="0"><div class="top"><span class="nm">${pos?`<span class="m">${pos}&nbsp;&nbsp;</span>`:''}${photoTag(a.id,'th')}${fullName(a)}</span><span class="mt">${meta(a)}</span></div>${full?`<div class="mot">${esc(a.mot)}</div>`:''}</div>`}
 let dragId=null;
 function wireDnD(){
   $$('.card').forEach(c=>{c.ondragstart=e=>{dragId=c.dataset.id;c.classList.add('dragging');e.dataTransfer.effectAllowed='move';try{e.dataTransfer.setData('text/plain',dragId)}catch(_){}};
@@ -436,6 +533,10 @@ function rSheet(){
   const sgs=[...new Set([...KNOWN_SG,...S.apps.map(x=>x.sg).filter(Boolean)])].sort((x,y)=>x.localeCompare(y,'de'));
   L.innerHTML=`<div class="scrim" id="scrim"></div><aside class="sheet" role="dialog" aria-label="Bewerbung">
   <div style="display:flex;justify-content:space-between;gap:10px"><span class="m">${d6(a.date)}</span><button class="link" id="close">schließen</button></div>
+  <div class="phrow"><div class="phbox" id="phBox" tabindex="0" role="button">${PHOTOS[a.id]?photoTag(a.id,'fill'):'Foto hierher ziehen,<br>mit ⌘V einfügen<br>oder klicken'}</div>
+   <div class="phside"><input type="file" id="phFile" accept="image/*" hidden><label for="phUrl">Bild-Adresse</label><input id="phUrl" placeholder="https://…" autocomplete="off">
+    <div class="actions" style="margin-top:8px"><button class="btn small" id="phUrlGo">Übernehmen</button>${PHOTOS[a.id]?'<button class="link u bad" id="phDel">Foto entfernen</button>':''}</div>
+    <p class="f" style="margin-top:8px">In LinkedIn oder Google: Rechtsklick › Bild kopieren, dann hier ⌘V.</p></div></div>
   <div class="fields" style="margin-top:14px">
     <div><label for="eVn">Vorname</label><input id="eVn" value="${esc(a.vn)}"></div><div><label for="eNn">Nachname</label><input id="eNn" value="${esc(a.nn)}"></div>
     <div class="full"><label for="eEm">E-Mail</label><input id="eEm" value="${esc(a.email)}"></div></div>
@@ -452,6 +553,10 @@ function rSheet(){
   </aside>`;
   const close=()=>{sel=null;render()};
   $('#openMail').onclick=()=>openMail(a.id);
+  wirePhotoDrop($('#phBox'),a.id);$('#phBox').onclick=()=>$('#phFile').click();$('#phBox').onkeydown=e=>{if(e.key==='Enter')$('#phFile').click()};
+  $('#phFile').onchange=e=>{const f=e.target.files[0];if(f)setPhoto(a.id,f)};
+  $('#phUrlGo').onclick=()=>{const u=$('#phUrl').value.trim();if(u){$('#phUrl').blur();setPhoto(a.id,u)}};
+  if($('#phDel'))$('#phDel').onclick=()=>removePhoto(a.id);
   $('#close').onclick=close;$('#scrim').onclick=close;
   L.querySelector('.sheet').onkeydown=e=>{if(e.key==='Escape')close()};
   $$('.st button').forEach(b=>b.onclick=()=>{move(a.id,b.dataset.s,null)});
@@ -462,37 +567,38 @@ function rSheet(){
   if($('#reex'))$('#reex').onclick=async()=>{$('#reex').textContent='liest aus …';const mail={text:a.mailText,full:a.mailFull,from:a.mailFrom,fromName:'',subject:a.mailSubject,email:a.email,date:a.date,dateRaw:''};
     const r=await extract(mail);const n=buildApp(mail,r.x,r.ai);Object.assign(a,{vn:n.vn,nn:n.nn,sg:n.sg,abschluss:n.abschluss,sem:n.sem,mot:n.mot,flags:n.flags});if(!a.gEdited)a.g=n.g;
     save();rSheet();toast(r.ai?'Neu ausgelesen':'Mistral nicht erreichbar: '+(r.err||''))};
-  $('#del').onclick=()=>{const b=$('#del');if(b.dataset.c){S.apps=S.apps.filter(x=>x.id!==a.id);sel=null;save();render();toast('Gelöscht')}else{b.dataset.c=1;b.textContent='Wirklich löschen? Nochmal klicken'}};
+  $('#del').onclick=()=>{const b=$('#del');if(b.dataset.c){S.apps=S.apps.filter(x=>x.id!==a.id);if(PHOTOS[a.id])removePhoto(a.id);sel=null;save();render();toast('Gelöscht')}else{b.dataset.c=1;b.textContent='Wirklich löschen? Nochmal klicken'}};
 }
 
 /* ---------- /mails ---------- */
 const typeOf=a=>a.status==='zusage'?(a.nachruecker?'nach':'zusage'):a.status;
 function fill(s,a){const p=byStatus('warte').findIndex(x=>x.id===a.id)+1;return String(s).replace(/\{vorname\}/g,a.vn||'').replace(/\{kurs\}/g,S.kurs).replace(/\{termin\}/g,S.termin).replace(/\{termin2\}/g,S.termin2).replace(/\{ort\}/g,S.ort).replace(/\{absender\}/g,S.absender).replace(/\{position\}/g,p||'–')}
-const mailState=a=>a.mail==='versendet'?'versendet':a.mail==='entwurf'?'entwurf in Mail':'—';
+const jobOf=id=>JOBS.find(j=>j.app_id===id);
+const mailState=a=>{if(a.mail==='versendet')return'versendet';if(a.mail==='entwurf')return'entwurf in Mail';const j=jobOf(a.id);if(j)return j.status==='fehler'?'<span class="bad">fehler</span>':'wartet auf Mail-Helfer';return'—'};
 async function makeDrafts(list){
-  if(busy)return;busy=true;let ok=0;let err=null;
-  for(const a of list){toast(`Entwürfe … ${ok+1} / ${list.length}`,900);const t=S.tpl[typeOf(a)];
-    try{await api('/api/draft',{method:'POST',body:JSON.stringify({to:a.email,subject:fill(t.s,a),body:fill(t.b,a),sender:S.senderAddr||''})});a.mail='entwurf';ok++;save()}
-    catch(e){err=e.message;break}}
-  busy=false;rMails();
-  if(err)toast(`${ok} Entwürfe angelegt. Abgebrochen: ${err}`,8000);else toast(`${ok} Entwürfe in Apple Mail angelegt. Bitte dort prüfen und senden.`,5000);
+  if(busy||!list.length)return;busy=true;
+  try{const jobs=list.map(a=>{const t=S.tpl[typeOf(a)];return{app_id:a.id,to:a.email,subject:fill(t.s,a),body:fill(t.b,a),sender:S.senderAddr||''}});
+    await api('/api/drafts',{method:'POST',body:JSON.stringify({jobs})});
+    list.forEach(a=>{JOBS=JOBS.filter(j=>j.app_id!==a.id);JOBS.push({app_id:a.id,status:'offen'})});
+    toast(helperOnline()?`${list.length} Entwürfe beauftragt. Der Mail-Helfer legt sie gleich in Apple Mail an.`:`${list.length} Entwürfe beauftragt. Sie entstehen, sobald der Mail-Helfer auf dem Mac läuft.`,5000)}
+  catch(e){if(e.status!==401)toast(e.message,6000)}finally{busy=false;rMails()}
 }
 function rMails(){
   const z=byStatus('zusage').filter(a=>!a.nachruecker),nr=byStatus('zusage').filter(a=>a.nachruecker),w=byStatus('warte'),ab=byStatus('absage').filter(a=>!a.ersetzt),off=byStatus('offen');
   const all=[...nr,...z,...w,...ab];if(!all.some(a=>a.id===mailSel))mailSel=(all.find(a=>!a.mail)||all[0]||{}).id;
   const noAddr=all.filter(a=>!a.email).length;
-  const grp=(t,l,k)=>{if(!l.length)return'';const open=l.filter(a=>!a.mail&&a.email);return `<div class="group"><div class="gh"><span>${t} <span class="m">${l.length}</span></span><span class="acts">${HEALTH.mac&&open.length?`<button class="link u" data-dr="${k}">${open.length} Entwürfe anlegen</button>`:''}<button class="link m" data-all="${k}">alle versendet</button></span></div>
+  const grp=(t,l,k)=>{if(!l.length)return'';const open=l.filter(a=>!a.mail&&a.email&&!(jobOf(a.id)&&jobOf(a.id).status==='offen'));return `<div class="group"><div class="gh"><span>${t} <span class="m">${l.length}</span></span><span class="acts">${open.length?`<button class="link u" data-dr="${k}">${open.length} Entwürfe anlegen</button>`:''}<button class="link m" data-all="${k}">alle versendet</button></span></div>
     ${l.map((a,i)=>`<div class="rc ${a.id===mailSel?'on':''}" data-id="${a.id}"><span>${k==='warte'?`<span class="m">${i+1}&nbsp;&nbsp;</span>`:''}${fullName(a)}</span><span class="${a.email?'m':'bad'}">${a.email?mailState(a):'keine Adresse'}</span></div>`).join('')}</div>`};
   const a=S.apps.find(x=>x.id===mailSel);let prev='<p class="m">Noch niemand entschieden.</p>';
   if(a){const t=S.tpl[typeOf(a)];prev=`<div class="hdr"><span>an</span><span>${esc(a.email)||'<span class="bad">keine Adresse</span>'}</span><span>betreff</span><span id="pSub">${esc(fill(t.s,a))}</span></div><pre id="pBody">${esc(fill(t.b,a))}</pre>
-    <div class="actions">${HEALTH.mac&&a.email?`<button class="btn ${a.mail?'':'solid'}" id="draft">${a.mail==='entwurf'?'Nochmal als Entwurf':'Entwurf in Apple Mail'}</button>`:''}<button class="btn" id="cpy">Text kopieren</button><button class="btn" id="sent">${a.mail==='versendet'?'Zurück auf offen':'Als versendet markieren'}</button></div>`}
-  $('#main').innerHTML=`${off.length?`<p class="notice">${off.length} noch nicht entschieden, bekommen keine Mail.</p>`:''}${noAddr?`<p class="notice bad">${noAddr} ohne E-Mail-Adresse. Im Import nachtragen.</p>`:''}${!HEALTH.mac?`<p class="notice">Entwürfe in Apple Mail gehen nur, wenn die App auf einem Mac läuft.</p>`:''}
+    <div class="actions">${a.email?`<button class="btn ${a.mail?'':'solid'}" id="draft">${a.mail==='entwurf'?'Nochmal als Entwurf':'Entwurf in Apple Mail'}</button>`:''}<button class="btn" id="cpy">Text kopieren</button><button class="btn" id="sent">${a.mail==='versendet'?'Zurück auf offen':'Als versendet markieren'}</button></div>`}
+  $('#main').innerHTML=`${off.length?`<p class="notice">${off.length} noch nicht entschieden, bekommen keine Mail.</p>`:''}${noAddr?`<p class="notice bad">${noAddr} ohne E-Mail-Adresse. Im Import nachtragen.</p>`:''}${helperOnline()?'<p class="m">Mail-Helfer verbunden.</p>':'<p class="notice">Mail-Helfer nicht verbunden. Beauftragte Entwürfe entstehen, sobald er auf dem Mac läuft.</p>'}${JOBS.some(j=>j.status==='fehler')?`<p class="notice bad">${JOBS.filter(j=>j.status==='fehler').length} Entwürfe fehlgeschlagen: ${esc((JOBS.find(j=>j.status==='fehler')||{}).error||'')}. Erneut beauftragen über die Vorschau.</p>`:''}
   <div class="mailgrid"><div>${grp('nachrücker',nr,'nach')}${grp('zusage',z,'zusage')}${grp('warteliste',w,'warte')}${grp('absage',ab,'absage')}
   <p class="f">Texte und Absender unter /einstellungen.</p></div><div><div class="preview">${prev}</div></div></div>`;
   const groupOf=k=>k==='nach'?nr:k==='zusage'?z:k==='warte'?w:ab;
   $$('.rc').forEach(r=>r.onclick=()=>{mailSel=r.dataset.id;rMails()});
   $$('[data-all]').forEach(b=>b.onclick=()=>{groupOf(b.dataset.all).forEach(x=>x.mail='versendet');save();rMails()});
-  $$('[data-dr]').forEach(b=>b.onclick=()=>makeDrafts(groupOf(b.dataset.dr).filter(x=>!x.mail&&x.email)));
+  $$('[data-dr]').forEach(b=>b.onclick=()=>makeDrafts(groupOf(b.dataset.dr).filter(x=>!x.mail&&x.email&&!(jobOf(x.id)&&jobOf(x.id).status==='offen'))));
   if(a){
     if($('#draft'))$('#draft').onclick=()=>makeDrafts([a]);
     $('#cpy').onclick=()=>{const txt=$('#pSub').textContent+'\n\n'+$('#pBody').textContent;navigator.clipboard.writeText(txt).then(()=>toast('Kopiert'),()=>toast('Kopieren nicht möglich'))};
@@ -505,7 +611,7 @@ function rSitzung(){
   const da=z.filter(a=>a.anwesend===true).length;
   $('#main').innerHTML=`<div class="col1"><p class="m">${esc(S.termin)} · ${da} da · ${miss.length} nicht da · ${z.length-da-miss.length} offen</p>
   ${miss.length?`<p class="notice">${miss.length} ${miss.length>1?'Plätze':'Platz'} frei. ${w.length?`Nächste auf der Warteliste: ${w.slice(0,miss.length).map(fullName).join(', ')}. <button class="btn solid" id="nach" style="margin-left:6px">Nachrücken lassen</button>`:'Warteliste ist leer.'}</p>`:''}
-  <div class="list" style="margin-top:18px">${z.map(a=>`<div class="att"><span>${fullName(a)}</span><span class="seg" data-id="${a.id}"><button class="${a.anwesend===true?'on':''}" data-v="1">da</button><button class="n ${a.anwesend===false?'on':''}" data-v="0">nicht da</button></span></div>`).join('')||'<p class="m" style="padding-top:10px">Noch keine Zusagen.</p>'}</div>
+  <div class="list" style="margin-top:18px">${z.map(a=>`<div class="att"><span>${photoTag(a.id,'th lg')}${fullName(a)}</span><span class="seg" data-id="${a.id}"><button class="${a.anwesend===true?'on':''}" data-v="1">da</button><button class="n ${a.anwesend===false?'on':''}" data-v="0">nicht da</button></span></div>`).join('')||'<p class="m" style="padding-top:10px">Noch keine Zusagen.</p>'}</div>
   ${nr.length?`<p class="m" style="margin-top:26px">Nachgerückt: ${nr.map(fullName).join(', ')}. Mails unter /mails.</p>`:''}</div>`;
   $$('.seg').forEach(sg=>sg.querySelectorAll('button').forEach(b=>b.onclick=()=>{const p=S.apps.find(x=>x.id===sg.dataset.id),v=b.dataset.v==='1';p.anwesend=p.anwesend===v?null:v;save();rSitzung()}));
   if($('#nach'))$('#nach').onclick=()=>{let n=0;miss.forEach(m=>{const nx=byStatus('warte')[0];if(!nx)return;m.status='absage';m.ersetzt=true;m.order=999;nx.status='zusage';nx.nachruecker=true;nx.mail=null;nx.order=byStatus('zusage').length;n++});
@@ -549,11 +655,14 @@ function rSettings(){
    ${(()=>{const c={};S.apps.forEach(a=>{if(a.sg)c[a.sg]=(c[a.sg]||0)+1});const names=Object.keys(c).sort((x,y)=>x.localeCompare(y,'de'));
      return names.length?`<div class="list">${names.map(n=>`<div class="att"><span>${esc(n)} <span class="m">${c[n]}</span></span><select class="mrg" data-from="${esc(n)}" style="width:auto;color:var(--muted)"><option value="">zusammenführen mit …</option>${names.filter(x=>x!==n).map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('')}</select></div>`).join('')}</div>`:'<p class="m">Noch keine Bewerbungen.</p>'})()}
    ${Object.keys(S.sgAlias).length?`<p class="m" style="margin-top:14px">Eigene Regeln: ${Object.entries(S.sgAlias).map(([k,v])=>`${esc(k)} → ${esc(v)} <button class="link u" data-unalias="${esc(k)}">entfernen</button>`).join(' · ')}</p>`:''}</section>
-  <section class="sec"><h2>System</h2><p class="m">Version ${esc(HEALTH.version||'?')} · Mistral: ${HEALTH.mistral?'aktiv ('+esc(HEALTH.model)+')':'<span class="bad">kein API-Key in .env</span>'} · Apple Mail: ${HEALTH.mac?'verfügbar':'<span class="bad">nur auf dem Mac</span>'}</p></section>
+  <section class="sec"><h2>Teamlink</h2><p class="m">Wer diesen Link hat, hat vollen Zugriff auf alle Bewerbungen. Nur intern weitergeben.</p>
+   <div style="display:flex;gap:10px;align-items:end"><div style="flex:1;min-width:0"><input id="tLink" readonly value="${esc(location.origin+'/#k='+TOKEN)}"></div><button class="btn" id="tCopy">Kopieren</button></div>
+   <p style="margin-top:14px"><button class="link u" id="tNew">Neuen Teamlink erzeugen</button> <span class="f">Der alte Link funktioniert danach sofort nicht mehr, auch im Mail-Helfer.</span></p></section>
+  <section class="sec"><h2>System</h2><p class="m">Version ${esc(HEALTH.version||'?')} · Mistral: ${HEALTH.mistral?'aktiv':'<span class="bad">kein Key bei Vercel hinterlegt</span>'} · Mail-Helfer: ${helperOnline()?'verbunden':'nicht verbunden'}</p></section>
   <section class="sec"><h2>Daten</h2>
-   <p class="m">Alles liegt nur auf diesem Mac im Ordner <b>data</b> der App, mit täglichen Sicherungen der letzten 14 Tage.</p>
-   <div class="actions" style="margin-bottom:22px"><button class="btn" id="csv">Liste als CSV</button><button class="btn" id="json">Sicherung als JSON</button><button class="btn" id="newRound">Neue Runde beginnen</button></div>
-   <p class="m">Nach Abschluss des Kurses sollten die Bewerberdaten gelöscht werden. Das entfernt auch alle Sicherungen.</p>
+   <p class="m">Bewerbungen und Fotos liegen in einer Datenbank in Frankfurt (Supabase). Zugriff nur mit dem Teamlink.</p>
+   <div class="actions" style="margin-bottom:22px"><button class="btn" id="csv">Liste als CSV</button><button class="btn" id="json">Sicherung als JSON</button><button class="btn" id="restore">Sicherung einspielen</button><input type="file" id="restoreF" accept="application/json,.json" hidden><button class="btn" id="newRound">Neue Runde beginnen</button></div>
+   <p class="m">Nach Abschluss des Kurses sollten die Bewerberdaten gelöscht werden. Das entfernt alle Bewerbungen, Fotos und Mail-Aufträge für das ganze Team.</p>
    <div style="display:flex;gap:10px;align-items:end;max-width:420px"><div style="flex:1"><label for="wipeC">Zum Löschen LÖSCHEN eintippen</label><input id="wipeC" autocomplete="off"></div><button class="btn" id="wipe" style="border-color:var(--bad);color:var(--bad)">Alle Daten löschen</button></div>
   </section></div>`;
   $$('#main input[data-k]').forEach(i=>i.onchange=()=>{S[i.dataset.k]=i.type==='number'?Math.max(1,parseInt(i.value)||1):i.value.trim();save();header()});
@@ -566,10 +675,18 @@ function rSettings(){
   $('#csv').onclick=()=>download(`${S.kurs}-${stamp}.csv`,csv([['Status','Wartelistenplatz','Vorname','Nachname','E-Mail','Studiengang','Abschluss','Semester','Geschlecht (geschätzt)','Eingang','Mail','Erste Sitzung','Nachrücker','Motivation'],
     ...['zusage','warte','absage','offen'].flatMap(st=>byStatus(st).map((a,i)=>[SN[st],st==='warte'?i+1:'',a.vn,a.nn,a.email,a.sg,a.abschluss,a.sem??'',a.g,a.date,a.mail||'',a.anwesend===true?'da':a.anwesend===false?'nicht da':'',a.nachruecker?'ja':'',a.mot]))]),'text/csv;charset=utf-8');
   $('#json').onclick=()=>download(`${S.kurs}-sicherung-${stamp}.json`,JSON.stringify(S,null,1),'application/json');
-  $('#newRound').onclick=()=>{const b=$('#newRound');if(!b.dataset.c){b.dataset.c=1;b.textContent='Alle Bewerbungen entfernen? Nochmal klicken';return}
-    download(`${S.kurs}-sicherung-${stamp}.json`,JSON.stringify(S,null,1),'application/json');S.apps=[];S.demo=false;hist=[];lastImport=null;save();tab='import';saveUi();render();toast('Sicherung heruntergeladen, neue Runde begonnen',4000)};
-  $('#wipe').onclick=async()=>{if($('#wipeC').value!=='LÖSCHEN'){toast('Bitte LÖSCHEN eintippen');return}
-    try{clearTimeout(saveTimer);dirty=false;await api('/api/wipe',{method:'POST',body:JSON.stringify({confirm:'LÖSCHEN'})});REV=0;S=emptyState();hist=[];lastImport=null;tab='import';saveUi();render();toast('Alle Daten gelöscht')}catch(e){toast(e.message)}};
+  $('#tCopy').onclick=()=>{const v=$('#tLink').value;navigator.clipboard.writeText(v).then(()=>toast('Teamlink kopiert'),()=>{$('#tLink').select();toast('Markiert, mit ⌘C kopieren')})};
+  $('#tNew').onclick=async()=>{const b=$('#tNew');if(!b.dataset.c){b.dataset.c=1;b.textContent='Wirklich? Alle müssen den neuen Link bekommen. Nochmal klicken';return}
+    try{const j=await api('/api/rotate',{method:'POST',body:'{}'});TOKEN=j.token;try{localStorage.setItem('kursauswahl-token',TOKEN)}catch(e){}rSettings();toast('Neuer Teamlink erzeugt. Jetzt ans Team schicken und im Mail-Helfer eintragen.',6000)}catch(e){if(e.status!==401)toast(e.message)}};
+  $('#restore').onclick=()=>$('#restoreF').click();
+  $('#restoreF').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const d=JSON.parse(await f.text());const apps=Array.isArray(d.apps)?d.apps:Array.isArray(d)?d:null;if(!apps)throw new Error('Keine Bewerbungen in der Datei');
+    const have=new Set(S.apps.map(a=>a.id)),mails=new Set(S.apps.map(a=>a.email).filter(Boolean));let n=0;
+    apps.forEach(a=>{if(!a||!a.id||have.has(a.id)||(a.email&&mails.has(a.email)))return;S.apps.push(normApp(a,String(a.id).replace(/[^\w-]/g,'').slice(0,64)||('r'+Date.now()+n)));n++});
+    if(d.sgAlias)S.sgAlias={...d.sgAlias,...S.sgAlias};save();rSettings();toast(`${n} Bewerbungen eingespielt`)}catch(err){toast('Sicherung nicht lesbar: '+err.message,6000)}};
+  const wipeAll=async()=>{clearTimeout(saveTimer);dirty=false;await api('/api/wipe',{method:'POST',body:JSON.stringify({confirm:'LÖSCHEN'})});try{localStorage.setItem('kursauswahl-ui',JSON.stringify({tab:'import',sub:'durchgang'}))}catch(e){}location.reload()};
+  $('#newRound').onclick=async()=>{const b=$('#newRound');if(!b.dataset.c){b.dataset.c=1;b.textContent='Alle Bewerbungen für alle entfernen? Nochmal klicken';return}
+    download(`${S.kurs}-sicherung-${stamp}.json`,JSON.stringify(S,null,1),'application/json');try{await wipeAll()}catch(e){if(e.status!==401)toast(e.message)}};
+  $('#wipe').onclick=async()=>{if($('#wipeC').value!=='LÖSCHEN'){toast('Bitte LÖSCHEN eintippen');return}try{await wipeAll()}catch(e){if(e.status!==401)toast(e.message)}};
 }
 
 /* ---------- demo data ---------- */
@@ -587,8 +704,12 @@ function demoApps(){
 
 /* ---------- boot ---------- */
 (async()=>{
-  try{HEALTH=await api('/api/health');const st=await api('/api/state');REV=st.rev||0;S=normalize(st.data)}
-  catch(e){$('#main').innerHTML=`<p class="bad">Der lokale Server antwortet nicht. Bitte die App über „Start.command" starten.</p>`;return}
+  const m=location.hash.match(/k=([A-Za-z0-9_-]{32,200})/);
+  if(m){TOKEN=m[1];try{localStorage.setItem('kursauswahl-token',TOKEN)}catch(e){}history.replaceState(null,'',location.pathname)}
+  else{try{TOKEN=localStorage.getItem('kursauswahl-token')||''}catch(e){}}
+  if(!TOKEN){noAccess();return}
+  try{HEALTH=await api('/api/health');S=emptyState();applyRemote(await api('/api/sync?since=0'),true);S.apps.forEach(a=>SHADOW.set(a.id,JSON.stringify(a)))}
+  catch(e){if(e.status!==401)$('#main').innerHTML='<p class="bad">Server nicht erreichbar. Bitte die Seite neu laden.</p>';return}
   if(!S.apps.length&&tab!=='einstellungen')tab='import';
   render();
 })();

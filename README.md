@@ -1,45 +1,38 @@
 # Kursauswahl
 
-Bewerbungen für die Start-up Challenge (und andere Kurse des Gründungszentrums) auswählen und Zu-/Absagen vorbereiten. Läuft lokal auf einem Mac. Bewerberdaten verlassen den Rechner nur, um sie von Mistral auslesen zu lassen.
+Bewerbungen für die Start-up Challenge (und andere Kurse des Gründungszentrums) im Team auswählen und Zu-/Absagen vorbereiten. Web-App für mehrere Laptops gleichzeitig, Änderungen erscheinen bei allen nach wenigen Sekunden.
 
-## Einmalig einrichten
+## Zugang
 
-1. **Node.js** installieren (LTS-Version von https://nodejs.org), falls noch nicht vorhanden.
-2. Ordner an einen festen Ort legen, z. B. `Dokumente/Kursauswahl`.
-3. Im Terminal installieren (lädt alles nach `~/Dokumente/Kursauswahl`):
-   ```
-   mkdir -p ~/Dokumente/Kursauswahl && curl -fsSL https://raw.githubusercontent.com/another-human-being/Kursauswahl/main/Start.command -o ~/Dokumente/Kursauswahl/Start.command && chmod +x ~/Dokumente/Kursauswahl/Start.command
-   ```
-   Danach **Start.command** per Doppelklick starten. Es lädt beim ersten Start den Rest herunter.
-4. Beim ersten Start nach dem **Mistral-API-Key** gefragt werden und ihn einfügen. Er wird in `.env` gespeichert.
-5. Beim ersten Anlegen eines Mail-Entwurfs fragt macOS, ob das Terminal **Mail steuern** darf. Mit *OK* bestätigen.
+Es gibt einen **Teamlink** (`https://…/#k=…`). Wer ihn öffnet, ist drin; der Browser merkt sich den Zugang. Unter **/einstellungen › Teamlink** lässt er sich kopieren oder durch einen neuen ersetzen. Der alte ist dann sofort ungültig, auch im Mail-Helfer.
 
 ## Ablauf
 
-- **/import**: In Apple Mail den Bewerbungsordner auswählen, *Postfach › Postfach exportieren …* und den exportierten Ordner ins Feld ziehen. Mistral liest Name, Studiengang, Abschluss, Semester und Motivation aus. Rot markierte Einträge kurz gegen die Originalmail prüfen.
-- **/auswahl**: Im Meeting zuerst den *Durchgang* (Pfeiltasten: → ja, ← nein, ↓ später, Z rückgängig), danach auf dem *Board* die „später"-Fälle entscheiden und die Warteliste sortieren.
-- **/mails**: Pro Gruppe „Entwürfe anlegen". Die Mails landen als Entwürfe in Apple Mail und werden dort geprüft und abgeschickt. Danach „alle versendet" markieren.
-- **/erste-sitzung**: Am Mittwoch Anwesenheit abhaken, „Nachrücken lassen", dann unter /mails die Nachrücker-Entwürfe anlegen.
-- **/auswertung**: Übersicht nach Abschluss, Studiengang, Semester, Motivationslänge und Geschlecht.
-- **/einstellungen**: Kurs, Plätze, Termine, Absender, Mailtexte, Export und Löschen.
+- **/import**: In Apple Mail den Bewerbungsordner auswählen, *Postfach › Postfach exportieren …* und den exportierten Ordner ins Feld ziehen. Mistral liest Name, Studiengang, Abschluss, Semester und Motivation aus. Rot markierte Einträge gegen die Originalmail prüfen.
+- **/auswahl**: Zuerst der *Durchgang* (→ ja, ← nein, ↓ später, Z rückgängig), dann auf dem *Board* die „später"-Fälle entscheiden und die Warteliste sortieren.
+- **Fotos**: In der Detailansicht oder direkt auf der Karte im Durchgang: Bild hineinziehen, mit ⌘V einfügen (in LinkedIn oder Google per Rechtsklick › Bild kopieren) oder eine Bild-Adresse eintragen. Fotos werden auf 640 px verkleinert gespeichert.
+- **/mails**: Pro Gruppe „Entwürfe anlegen". Der Mail-Helfer legt sie in Apple Mail an, dort prüfen und senden, danach „alle versendet".
+- **/erste-sitzung**: Anwesenheit abhaken, „Nachrücken lassen", dann unter /mails die Nachrücker-Entwürfe anlegen.
+- **/auswertung**: Übersicht nach Abschluss, Studiengang, Semester, Motivationslänge und Geschlecht (aus Vornamen geschätzt).
+- **/einstellungen**: Kurs, Plätze, Termine, Absender, Mailtexte, Studiengänge zusammenführen, Teamlink, Export, Sicherung einspielen, Löschen.
 
-## Updates
+## Mail-Helfer (nur auf dem Mac, der die Mails verschickt)
 
-Start.command holt bei jedem Start die neueste Version von GitHub. Nichts herunterladen, nichts ersetzen. Der Ordner `data` und die Datei `.env` werden dabei nie angefasst. Ohne Internet startet die vorhandene Version. Wer Updates abschalten will, legt im Ordner eine leere Datei `.no-update` an. Die aktuelle Version steht unter /einstellungen.
-
-## Daten
-
-- Alles liegt in `data/state.json`, dazu tägliche Sicherungen der letzten 14 Tage in `data/backups/`.
-- Der Server ist nur auf diesem Mac erreichbar (`127.0.0.1`), nicht im Netzwerk.
-- Nach Kursende unter /einstellungen **Alle Daten löschen**.
-- Geschlecht wird aus dem Vornamen geschätzt und kann pro Person korrigiert werden.
-- Doppelte Schreibweisen von Studiengängen unter /einstellungen zusammenführen; die Regel gilt auch für spätere Importe.
-- Ein erneuter Import derselben Mails legt keine Duplikate an, lädt aber fehlende Originaltexte nach.
-
-## Ohne Doppelklick starten
+Einmalig im Terminal:
 
 ```
-cd Pfad/zum/Ordner
-npm start
+mkdir -p ~/Dokumente/Mail-Helfer && cd ~/Dokumente/Mail-Helfer && for f in Mail-Helfer.command helfer.js mail-draft.applescript; do curl -fsSL https://raw.githubusercontent.com/another-human-being/Kursauswahl/main/mail-helfer/$f -o $f; done && chmod +x Mail-Helfer.command
 ```
-Dann http://localhost:4321 öffnen.
+
+Dann `Mail-Helfer.command` per Doppelklick starten, beim ersten Mal den Teamlink einfügen. Beim ersten Entwurf fragt macOS, ob das Terminal Mail steuern darf. Der Helfer aktualisiert sich bei jedem Start selbst.
+
+## Technik
+
+- `public/index.html`: die App (ohne Build-Schritt).
+- `api/*.js`: Vercel-Funktionen. Sie reichen den Team-Token an die Datenbank weiter; die Datenbank (Supabase, Frankfurt) prüft jeden Zugriff selbst per Row Level Security.
+- Mistral-Key liegt nur als Umgebungsvariable `MISTRAL_API_KEY` bei Vercel.
+- Lokal testen: `npm run dev`, dann `http://localhost:4400/#k=<token>`.
+
+## Datenschutz
+
+Bewerberdaten und Fotos liegen bei Supabase (EU, Frankfurt), die App läuft bei Vercel. Vor dem Einsatz mit echten Daten mit der Datenschutzstelle klären: Auftragsverarbeitung (AV-Vertrag) und die Information der Bewerber:innen über Fotos aus fremden Quellen (DSGVO Art. 14). Nach Kursende unter /einstellungen **Alle Daten löschen**.

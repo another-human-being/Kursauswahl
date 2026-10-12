@@ -230,7 +230,7 @@ nach:{s:'Ein Platz ist frei: {kurs}',b:'{anrede},\n\nin der „{kurs}" ist ein P
 const COURSES={suc:{name:'Start-up Challenge',info:true,letters:false,docs:true},kanu:{name:'KANU',info:false,letters:true,docs:true,plaetze:6,kurs:'Schwaben Innovation Masterclass'}};
 let COURSE='suc';try{const c=JSON.parse(localStorage.getItem('kursauswahl-ui')||'{}').course;if(COURSES[c])COURSE=c}catch(e){}
 const F=()=>COURSES[COURSE];
-function emptyState(c){c=c||COURSE;return{apps:[],sgAlias:{},infoNames:null,demo:false,kurs:COURSES[c].kurs||COURSES[c].name,semester:'WiSe 2026/27',plaetze:(COURSES[c]&&COURSES[c].plaetze)||32,termin:'Mittwoch, 21.10.2026, 18:00 Uhr',termin2:'Mittwoch, 28.10.2026, 18:00 Uhr',ort:'Gründungszentrum',absender:'Team Gründungszentrum',senderAddr:'',tpl:JSON.parse(JSON.stringify(DEFAULT_TPL))}}
+function emptyState(c){c=c||COURSE;return{apps:[],sgAlias:{},infoNames:null,demo:false,kurs:COURSES[c].kurs||COURSES[c].name,semester:'WiSe 2026/27',plaetze:(COURSES[c]&&COURSES[c].plaetze)||32,termin:'Mittwoch, 21.10.2026, um 18:00 Uhr',termin2:'Mittwoch, 28.10.2026, um 18:00 Uhr',ort:'Gründungszentrum',absender:'Team Gründungszentrum',senderAddr:'',tpl:JSON.parse(JSON.stringify(DEFAULT_TPL))}}
 
 /* ---------- server I/O (Team-Betrieb) ---------- */
 let S=null,REV=0,HEALTH={mistral:false},saveTimer=null,saving=false,dirty=false,TOKEN='',EPOCH=null;

@@ -21,7 +21,7 @@ Es gibt einen **Teamlink** (`https://…/#k=…`). Wer ihn öffnet, ist drin; de
 Einmalig im Terminal:
 
 ```
-mkdir -p ~/Dokumente/Mail-Helfer && cd ~/Dokumente/Mail-Helfer && for f in Mail-Helfer.command helfer.js mail-draft.applescript; do curl -fsSL https://raw.githubusercontent.com/another-human-being/Kursauswahl/main/mail-helfer/$f -o $f; done && chmod +x Mail-Helfer.command
+mkdir -p ~/Documents/Mail-Helfer && cd ~/Documents/Mail-Helfer && for f in Mail-Helfer.command helfer.js mail-draft.applescript; do curl -fsSL https://raw.githubusercontent.com/another-human-being/Kursauswahl/main/mail-helfer/$f -o $f; done && chmod +x Mail-Helfer.command
 ```
 
 Dann `Mail-Helfer.command` per Doppelklick starten, beim ersten Mal den Teamlink einfügen. Beim ersten Entwurf fragt macOS, ob das Terminal Mail steuern darf. Der Helfer aktualisiert sich bei jedem Start selbst.

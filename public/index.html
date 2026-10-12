@@ -294,9 +294,13 @@ function applyRemote(j,full){
   return changed;
 }
 let polling=false;
+// Neue Version online: ungespeicherte Änderungen abschicken und neu laden, sobald niemand gerade tippt oder zieht
+let reloadAsked=false;function newVersion(){if(reloadAsked)return;reloadAsked=true;
+  const go=async()=>{if(interacting()||busy){setTimeout(go,2000);return}try{await flush()}catch(e){}location.reload()};
+  toast('Neue Version der Kursauswahl, die Seite lädt gleich neu …',4000);setTimeout(go,1500)}
 async function poll(){
   if(polling||document.hidden||!TOKEN||!S)return;polling=true;
-  try{const j=await api('/api/sync?since='+REV);if(applyRemote(j,false))softRender();if(!dirty)$('#offline').hidden=true}
+  try{const j=await api('/api/sync?since='+REV);if(j.version&&HEALTH.version&&j.version!==HEALTH.version){newVersion()}if(applyRemote(j,false))softRender();if(!dirty)$('#offline').hidden=true}
   catch(e){if(e.status!==401)$('#offline').hidden=false}finally{polling=false}
 }
 setInterval(poll,2500);document.addEventListener('visibilitychange',()=>{if(!document.hidden)poll()});

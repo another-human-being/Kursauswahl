@@ -15,6 +15,9 @@ module.exports = handler(async (req, res) => {
     const rows = [];
     for (const j of jobs) {
       if (!MAIL.test(String(j.to || '')) || !/^[\w-]{1,64}$/.test(String(j.app_id || ''))) return send(res, 400, { error: `Ungültige Adresse: ${j.to}` });
+      // Nicht ersetzte Platzhalter heißen: der Browser hat noch eine alte Version der Seite geladen
+      const left = `${j.subject || ''}\n${j.body || ''}`.match(/\{(anrede|vorname|nachname|kurs|termin2?|ort|absender|position)\}/);
+      if (left) return send(res, 409, { error: `Platzhalter ${left[0]} wurde nicht ersetzt. Bitte die Seite neu laden (⌘R) und noch einmal versuchen.` });
       rows.push({ app_id: j.app_id, to_addr: j.to, subject: String(j.subject || '').slice(0, 500), body: String(j.body || '').slice(0, 20000), sender: String(j.sender || '').slice(0, 200) });
     }
     // Offene Aufträge für dieselben Bewerbungen ersetzen, damit nichts doppelt entsteht

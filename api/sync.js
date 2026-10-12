@@ -1,6 +1,6 @@
 // Liefert alles, was sich seit einer Revision geändert hat (alle Kurse).
 'use strict';
-const { sb, send, guard, handler } = require('./_lib');
+const { sb, send, guard, handler, VERSION } = require('./_lib');
 
 module.exports = handler(async (req, res) => {
   const token = await guard(req, res); if (!token) return;
@@ -17,6 +17,7 @@ module.exports = handler(async (req, res) => {
   let rev = since;
   for (const r of [...apps, ...courses, ...photos, ...files]) if (r.rev > rev) rev = r.rev;
   send(res, 200, {
+    version: VERSION,
     rev,
     apps,
     courses,

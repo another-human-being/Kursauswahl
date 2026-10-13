@@ -110,13 +110,14 @@ kbd{font:inherit;color:var(--faint);margin-left:6px}
 .track{position:relative;height:9px}
 .track .all{position:absolute;inset:0 auto 0 0;background:var(--rule)}
 .track .sel{position:absolute;inset:0 auto 0 0;background:var(--fg)}
-.ask{display:flex;align-items:baseline;gap:10px;border-bottom:1px solid var(--rule);margin:-14px 0 0;max-width:720px}
+.ask{display:flex;align-items:baseline;gap:10px;border-bottom:1px solid var(--rule);margin:-14px 0 26px;max-width:720px}
+@media (hover:none){.ask kbd{display:none}}
 .ask:focus-within{border-color:var(--fg)}
 .ask input{border:0;padding:8px 0}
 .ask-p{color:var(--faint)} .ask:focus-within .ask-p{color:var(--fg)}
 .ask kbd{white-space:nowrap}
 #askOut{max-width:720px}
-.ask-out{padding-block:14px 30px}
+.ask-out{padding-block:0 30px;margin-top:-12px}
 .ask-h{display:flex;justify-content:space-between;gap:16px;margin-bottom:12px;font-size:13px}
 .ask-act{display:flex;gap:8px;margin:4px 0 16px}
 #askOut:not(:empty)+main{border-top:1px solid var(--fg);padding-top:26px}

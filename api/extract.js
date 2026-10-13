@@ -1,6 +1,7 @@
 // Liest Bewerbungsmails mit Mistral aus. Der API-Key bleibt auf dem Server.
 'use strict';
 const { send, guard, handler } = require('./_lib');
+const ASK = require('./_ask');
 
 const MISTRAL_URL = 'https://api.mistral.ai/v1/chat/completions';
 const SYSTEM_PROMPT = `Du liest Bewerbungs-E-Mails für einen Universitätskurs aus und gibst ausschließlich ein JSON-Objekt zurück.
@@ -21,6 +22,12 @@ module.exports = handler(async (req, res) => {
   if (!(await guard(req, res))) return;
   const key = (process.env.MISTRAL_API_KEY || '').trim();
   if (!key) return send(res, 503, { error: 'Kein Mistral-Key hinterlegt' });
+  // Eingabezeile (Fragen und Änderungen) läuft über dieselbe Funktion, weil das Vercel-Kontingent an Funktionen ausgeschöpft ist
+  const mode = (req.body || {}).mode;
+  if (mode === 'ask' || mode === 'content') {
+    try { return send(res, 200, await (mode === 'ask' ? ASK.ask : ASK.content)(req.body, key)); }
+    catch (e) { return send(res, e.status || 500, { error: e.message }); }
+  }
   const { text, from, subject, studiengaenge } = req.body || {};
   const names = Array.isArray(studiengaenge) ? studiengaenge.filter(x => typeof x === 'string' && x.length < 60).slice(0, 80) : [];
   const user = (names.length ? `Bekannte Studiengänge (exakt diese Schreibweise verwenden, wenn einer passt; Abkürzungen und Langformen zuordnen, z. B. Betriebswirtschaftslehre = BWL, GBM = Global Business Management): ${names.join(', ')}\n\n` : '')

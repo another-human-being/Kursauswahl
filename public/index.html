@@ -110,6 +110,16 @@ kbd{font:inherit;color:var(--faint);margin-left:6px}
 .track{position:relative;height:9px}
 .track .all{position:absolute;inset:0 auto 0 0;background:var(--rule)}
 .track .sel{position:absolute;inset:0 auto 0 0;background:var(--fg)}
+.ask{display:flex;align-items:baseline;gap:10px;border-bottom:1px solid var(--rule);margin:-14px 0 0;max-width:720px}
+.ask:focus-within{border-color:var(--fg)}
+.ask input{border:0;padding:8px 0}
+.ask-p{color:var(--faint)} .ask:focus-within .ask-p{color:var(--fg)}
+.ask kbd{white-space:nowrap}
+#askOut{max-width:720px}
+.ask-out{padding-block:14px 30px}
+.ask-h{display:flex;justify-content:space-between;gap:16px;margin-bottom:12px;font-size:13px}
+.ask-act{display:flex;gap:8px;margin:4px 0 16px}
+#askOut:not(:empty)+main{border-top:1px solid var(--fg);padding-top:26px}
 .row .n{text-align:right;color:var(--muted)} .row .n b{color:var(--fg);font-weight:400}
 .mailgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:40px}
 @media (max-width:820px){.mailgrid{grid-template-columns:1fr}}
@@ -189,6 +199,8 @@ img.ph[data-ph]{cursor:zoom-in}
     <span class="sp"></span>
     <button class="link" data-t="einstellungen">/einstellungen</button>
   </nav>
+  <div class="ask" id="ask" hidden><span class="ask-p" aria-hidden="true">›</span><input id="askIn" type="text" autocomplete="off" spellcheck="false" placeholder="Fragen oder ändern, z. B. „Wie viele Master haben zugesagt?“" aria-label="Fragen oder ändern"><kbd>⌘K</kbd></div>
+  <div id="askOut"></div>
   <main id="main"><p class="m">Lädt …</p></main>
 </div>
 <div id="layer"></div>
@@ -304,7 +316,7 @@ async function poll(){
   catch(e){if(e.status!==401)$('#offline').hidden=false}finally{polling=false}
 }
 setInterval(poll,2500);document.addEventListener('visibilitychange',()=>{if(!document.hidden)poll()});
-function interacting(){const ae=document.activeElement;return !!(dragId||swipeDown||(ae&&/INPUT|TEXTAREA|SELECT/.test(ae.tagName)&&ae.type!=='file'))}
+function interacting(){const ae=document.activeElement;return !!(dragId||swipeDown||(ae&&/INPUT|TEXTAREA|SELECT/.test(ae.tagName)&&ae.type!=='file'&&ae.id!=='askIn'))}
 function softRender(){if(interacting()){needRender=true;return}needRender=false;const y=window.scrollY;render();window.scrollTo(0,y)}
 document.addEventListener('focusout',()=>setTimeout(()=>{if(needRender)softRender()},60));
 document.addEventListener('pointerup',()=>setTimeout(()=>{if(needRender)softRender()},300));
@@ -372,6 +384,7 @@ function header(){
   const z=byStatus('zusage').length;$('#hKurs').innerHTML=Object.keys(COURSES).map(c=>`<button class="link ${c===COURSE?'t':'m'}" data-c="${c}">${esc(c===COURSE?S.kurs:((CS[c]&&CS[c].kurs)||COURSES[c].name))}</button>`).join('<span class="f"> / </span>');$$('#hKurs [data-c]').forEach(b=>b.onclick=()=>switchCourse(b.dataset.c));$('#hSem').textContent=S.semester+(S.demo?' · Beispieldaten':'');
   $('#hCount').innerHTML=S.apps.length?`<span class="${z>P()?'bad':''}">${z}</span><span class="m"> / ${P()}</span>`:'';
   $$('#tabs button').forEach(b=>b.setAttribute('aria-current',b.dataset.t===tab));
+  $('#ask').hidden=$('#tabs').hidden;if(ASK&&ASK.course!==COURSE){ASK=null;askRender()}
 }
 function render(){header();document.onkeydown=null;
   const needData=['auswahl','mails','sitzung','auswertung'].includes(tab)&&!S.apps.length;
@@ -957,6 +970,102 @@ function rAuswertung(){
   <section class="aw"><h2>Männlich / weiblich</h2>${bars(a=>({w:'weiblich',m:'männlich'})[a.g]||'unklar',all,['weiblich','männlich','unklar'])}</section>`;
 }
 
+/* ---------- Eingabezeile: Fragen an die Daten, Änderungen mit Vorschau ---------- */
+// Mistral übersetzt nur. Gefiltert, gezählt und geändert wird hier im Browser, damit keine Zahl erfunden sein kann.
+let ASK=null; // {course, frage, spec, res, undo}
+const QL={name:'Name',vorname:'Vorname',nachname:'Nachname',email:'E-Mail',studiengang:'Studiengang',abschluss:'Abschluss',semester:'Semester',geschlecht:'Geschlecht',status:'Status',info:'Infoveranstaltung',favorit:'Favorit',notizen:'Notizen',empfehlungen:'Empfehlungsschreiben',motivationslaenge:'Länge Motivation',eingang:'Eingang',pruefen:'zu prüfen',mail:'Mail',anwesend:'erste Sitzung'};
+const STL={neu:'noch nicht gesichtet',spaeter:'später',zusage:'Zusage',warteliste:'Warteliste',absage:'Absage'};
+const qStat=a=>a.status==='offen'?(a.seen?'spaeter':'neu'):a.status==='warte'?'warteliste':a.status;
+const QF={name:a=>((a.vn||'')+' '+(a.nn||'')).trim(),vorname:a=>a.vn||'',nachname:a=>a.nn||'',email:a=>a.email||'',studiengang:a=>a.sg||'',abschluss:a=>a.abschluss||'',semester:a=>a.sem??null,
+  geschlecht:a=>a.g||'?',status:qStat,info:a=>a.info===true,favorit:a=>!!a.fav,notizen:a=>a.notes||'',empfehlungen:a=>recCount(a),
+  motivationslaenge:a=>F().letters?(a.mot||'').trim().split(/\s+/).filter(Boolean).length:(a.mot||'').length,eingang:a=>a.date||'',pruefen:a=>(a.flags||[]).length>0,mail:a=>a.mail||'offen',anwesend:a=>a.anwesend===true};
+function qFields(){return Object.keys(QF).filter(k=>!(k==='info'&&!F().info)&&!(k==='empfehlungen'&&!F().letters))}
+function qShow(k,v){if(v===true)return'ja';if(v===false)return'nein';if(v==null||v==='')return'–';if(k==='status')return STL[v]||v;if(k==='geschlecht')return({w:'weiblich',m:'männlich','?':'unklar'})[v]||v;if(k==='semester')return v+'. Semester';if(k==='eingang')return d6(v);return String(v)}
+const qn=v=>typeof v==='string'?norm(v):v;
+function qMatch(a,f){const v=QF[f.feld](a),w=f.wert;
+  const eq=(x,y)=>{if(typeof x==='boolean')return x===(y===true||y==='true'||y==='ja');if(typeof x==='number'||x==null)return x!=null&&Number(x)===Number(y);
+    if(f.feld==='studiengang')return norm(x)===norm(canonSg(String(y)))||norm(x)===norm(y);return qn(x)===qn(String(y))};
+  switch(f.op){case'=':return eq(v,w);case'!=':return!eq(v,w);case'in':return(Array.isArray(w)?w:[w]).some(y=>eq(v,y));
+    case'enthaelt':return norm(v).includes(norm(w));case'leer':return v==null||v===''||v===false||v===0;case'nicht_leer':return!(v==null||v===''||v===false||v===0);
+    case'>':case'>=':case'<':case'<=':{if(v==null||v==='')return false;const num=typeof v==='number',x=num?v:String(v),y=num?Number(w):String(w);if(num&&isNaN(y))return false;
+      return f.op==='>'?x>y:f.op==='>='?x>=y:f.op==='<'?x<y:x<=y}}return true}
+function qDescribe(sp){const opT={'=':'=','!=':'≠','>':'>','>=':'≥','<':'<','<=':'≤',enthaelt:'enthält',in:'ist',leer:'leer',nicht_leer:'nicht leer'};
+  const parts=sp.filter.map(f=>`${QL[f.feld]} ${opT[f.op]}${/leer/.test(f.op)?'':' '+(Array.isArray(f.wert)?f.wert.map(x=>qShow(f.feld,x)).join(' oder '):qShow(f.feld,f.wert))}`);
+  if(!parts.length)parts.push('alle Bewerbungen');
+  if(sp.typ==='abfrage'&&sp.darstellung==='verteilung')parts.push('nach '+QL[sp.gruppe]);
+  if(sp.sortierung)parts.push(`sortiert nach ${QL[sp.sortierung.feld]} ${sp.sortierung.richtung==='ab'?'absteigend':'aufsteigend'}`);
+  if(sp.limit)parts.push('die ersten '+sp.limit);return parts.join(' · ')}
+function qRun(sp){let l=S.apps.filter(a=>sp.filter.every(f=>qMatch(a,f)));
+  if(sp.sortierung){const g=QF[sp.sortierung.feld],d=sp.sortierung.richtung==='ab'?-1:1;l.sort((x,y)=>{const a=g(x),b=g(y);if(a==null||a==='')return 1;if(b==null||b==='')return-1;return(a>b?1:a<b?-1:0)*d})}
+  else l.sort((x,y)=>String(y.date).localeCompare(String(x.date)));return sp.limit?l.slice(0,sp.limit):l}
+function qRows(l,extra,why){if(!l.length)return'<p class="m">Keine Bewerbung passt.</p>';
+  return `<div class="list">${l.slice(0,200).map(a=>`<div class="li" data-open="${a.id}"><span class="m">${a.fav?'<span class="star on">★</span> ':''}${d6(a.date)}</span><span class="x">${photoTag(a.id,'th')}${fullName(a)} <span class="m">${meta(a)}</span> ${infoBadge(a)}${why&&why[a.id]?` <span class="m">· ${esc(why[a.id])}</span>`:''}</span><span class="tag">${(extra||[]).filter(k=>!['name','studiengang','abschluss','semester'].includes(k)).map(k=>esc(qShow(k,QF[k](a)))).concat([esc(STL[qStat(a)])]).join(' · ')}</span></div>`).join('')}</div>${l.length>200?`<p class="m">… und ${l.length-200} weitere</p>`:''}`}
+function qBars(l,k){const c=new Map(),cz=new Map();l.forEach(a=>{const v=qShow(k,QF[k](a));c.set(v,(c.get(v)||0)+1);if(a.status==='zusage')cz.set(v,(cz.get(v)||0)+1)});
+  const keys=[...c.keys()].sort((x,y)=>k==='semester'?(parseInt(x)||99)-(parseInt(y)||99):c.get(y)-c.get(x));if(!keys.length)return'<p class="m">Keine Bewerbung passt.</p>';
+  const max=Math.max(...c.values()),z=k!=='status';
+  return `${z?'<div class="leg"><span><i style="background:var(--s1)"></i>Zusagen</span><span><i style="background:var(--rule)"></i>alle</span></div>':''}${keys.map(v=>`<div class="row"><span class="lbl" title="${esc(v)}">${esc(v)}</span><span class="track"><span class="all" style="width:${c.get(v)/max*100}%"></span>${z?`<span class="sel" style="width:${(cz.get(v)||0)/max*100}%"></span>`:''}</span><span class="n">${z?`<b>${cz.get(v)||0}</b> / `:''}${c.get(v)}</span></div>`).join('')}`}
+function qPreviewVal(sp){const s=sp.setze;if(!s)return'';if(s.feld==='status')return STL[s.wert]||s.wert;return qShow(s.feld,s.feld==='studiengang'?canonSg(String(s.wert)):s.wert)}
+function qValid(sp){const s=sp.setze;if(!s)return'';const v=s.wert;
+  if(s.feld==='status'&&!['zusage','warteliste','absage','spaeter'].includes(v))return'Diesen Status gibt es nicht.';
+  if(s.feld==='abschluss'&&!['Bachelor','Master'].includes(v))return'Abschluss muss Bachelor oder Master sein.';
+  if(s.feld==='semester'&&!(Number.isInteger(+v)&&+v>0&&+v<30))return'Semester muss eine Zahl sein.';
+  if(s.feld==='geschlecht'&&!['w','m','?'].includes(v))return'Geschlecht muss w, m oder ? sein.';
+  if(s.feld==='studiengang'&&!(typeof v==='string'&&v.trim()))return'Kein Studiengang angegeben.';return''}
+function qApply(sp,l){const s=sp.setze,undo=l.map(a=>({id:a.id,v:{status:a.status,seen:a.seen,later:a.later,order:a.order,mail:a.mail,anwesend:a.anwesend,nachruecker:a.nachruecker,fav:a.fav,info:a.info,infoManual:a.infoManual,sg:a.sg,abschluss:a.abschluss,sem:a.sem,g:a.g,gEdited:a.gEdited}}));
+  l.forEach(a=>{if(s.feld==='status'){const st={zusage:'zusage',warteliste:'warte',absage:'absage',spaeter:'offen'}[s.wert];
+      if(st==='offen'){a.status='offen';a.seen=true;a.later=1;a.mail=null}else if(a.status!==st){a.order=byStatus(st).length;a.status=st;a.seen=true;a.mail=null;a.anwesend=null;if(st!=='zusage')a.nachruecker=false}}
+    else if(s.feld==='favorit')a.fav=s.wert===true||s.wert==='true';
+    else if(s.feld==='info'){a.info=s.wert===true||s.wert==='true';a.infoManual=true}
+    else if(s.feld==='studiengang')a.sg=canonSg(String(s.wert));
+    else if(s.feld==='abschluss')a.abschluss=s.wert;
+    else if(s.feld==='semester')a.sem=+s.wert;
+    else if(s.feld==='geschlecht'){a.g=s.wert;a.gEdited=true}});
+  save();return()=>{undo.forEach(u=>{const a=S.apps.find(x=>x.id===u.id);if(a)Object.entries(u.v).forEach(([k,v])=>{if(v===undefined)delete a[k];else a[k]=v})});save()}}
+const SETL={plaetze:'Plätze',termin:'Erste Sitzung',termin2:'Nächste Sitzung',ort:'Ort',semester:'Semester',kurs:'Name',absender:'Name unter den Mails'};
+async function askSubmit(frage){frage=String(frage||'').trim();if(!frage)return;
+  if(!HEALTH.mistral){ASK={course:COURSE,frage,err:'Für die Eingabezeile wird der Mistral-Key gebraucht.'};askRender();return}
+  ASK={course:COURSE,frage,loading:'versteht die Frage …'};askRender();
+  try{const sp=await api('/api/extract',{method:'POST',body:JSON.stringify({mode:'ask',frage,kurs:S.kurs,felder:qFields(),studiengaenge:[...new Set([...S.apps.map(a=>a.sg).filter(Boolean),...Object.values(S.sgAlias||{})])].concat(sgNames()).slice(0,80)})});
+    if(!ASK||ASK.frage!==frage)return;ASK.spec=sp;ASK.loading=null;
+    if(sp.typ==='inhalt'){const l=qRun({...sp,sortierung:null,limit:null});if(!l.length){ASK.res={l:[]};askRender();return}
+      ASK.loading=`liest ${l.length} ${F().letters?'Motivationsschreiben':'Motivationstexte'} …`;askRender();
+      const r=await api('/api/extract',{method:'POST',body:JSON.stringify({mode:'content',frage:sp.inhaltsfrage,items:l.map(a=>({id:a.id,name:QF.name(a),motivation:a.mot||'',notizen:a.notes||''}))})});
+      if(!ASK||ASK.frage!==frage)return;ASK.loading=null;ASK.res={content:r,pool:l.length}}
+    askRender()}
+  catch(e){if(e.status===401)return;if(ASK&&ASK.frage===frage){ASK.loading=null;ASK.err=e.message;askRender()}}}
+function askRender(){const out=$('#askOut');if(!out)return;if(!ASK||ASK.course!==COURSE){out.innerHTML='';return}
+  const head=(t)=>`<div class="ask-h"><span class="m">${t}</span><button class="link m" id="askX" aria-label="Schließen">schließen</button></div>`;let body='';
+  if(ASK.err)body=head(esc(ASK.frage))+`<p class="bad">${esc(ASK.err)}</p>`;
+  else if(ASK.loading)body=head(esc(ASK.frage))+`<p class="m">${esc(ASK.loading)}</p>`;
+  else{const sp=ASK.spec,u=`verstanden als: ${esc(qDescribe(sp))}`;
+    if(sp.typ==='unklar')body=head(esc(ASK.frage))+`<p>${esc(sp.hinweis||'Das konnte ich nicht zuordnen.')}</p><p class="m">Zum Beispiel: „Wie viele Master haben zugesagt?“ · „Verteilung Studiengang bei den Zusagen“ · „Alle ohne Motivation auf später“ · „Wer erwähnt Nachhaltigkeit?“</p>`;
+    else if(sp.typ==='einstellung'){const k=sp.einstellung.feld,v=k==='plaetze'?parseInt(sp.einstellung.wert,10):String(sp.einstellung.wert??'').trim(),bad=k==='plaetze'?!(v>0&&v<1000):!v;
+      body=head(esc(ASK.frage))+(ASK.done?`<p>${esc(SETL[k])} geändert. ${ASK.undo?'<button class="link u" id="askUndo">rückgängig</button>':''}</p>`:bad?`<p class="bad">Ungültiger Wert für ${esc(SETL[k])}.</p>`:
+        `<p>${esc(SETL[k])}: <span class="m">${esc(S[k])}</span> → <b style="font-weight:500">${esc(v)}</b></p><div class="ask-act"><button class="btn solid" id="askOk">Übernehmen</button><button class="btn" id="askNo">Abbrechen</button></div>`)}
+    else if(sp.typ==='aenderung'){const l=ASK.done?ASK.doneList:qRun(sp),bad=qValid(sp);
+      body=head(u)+(bad?`<p class="bad">${esc(bad)}</p>`:ASK.done?`<p>${l.length} Bewerbungen geändert: ${esc(QL[sp.setze.feld])} → ${esc(qPreviewVal(sp))}. ${ASK.undo?'<button class="link u" id="askUndo">rückgängig</button>':''}</p>`:
+        l.length?`<p>${l.length} ${l.length===1?'Bewerbung':'Bewerbungen'}: ${esc(QL[sp.setze.feld])} → <b style="font-weight:500">${esc(qPreviewVal(sp))}</b></p><div class="ask-act"><button class="btn solid" id="askOk">Übernehmen</button><button class="btn" id="askNo">Abbrechen</button></div>${qRows(l,[sp.setze.feld])}`:'<p class="m">Keine Bewerbung passt, nichts zu ändern.</p>')}
+    else if(sp.typ==='inhalt'){const r=ASK.res||{};const c=r.content;
+      body=head(`${esc(ASK.frage)} <span class="f">· gelesen von Mistral${sp.filter.length?' · vorher eingegrenzt: '+esc(qDescribe(sp)):''}</span>`)+(!c?'<p class="m">Keine Bewerbung passt zur Eingrenzung.</p>':
+        `${c.antwort?`<p>${esc(c.antwort)}</p>`:''}${c.gelesen<c.gesamt?`<p class="bad">Nur ${c.gelesen} von ${c.gesamt} Texten gelesen, die übrigen waren zu lang. Bitte enger eingrenzen.</p>`:''}<div class="kpi" style="margin:6px 0 14px"><span><b>${c.treffer.length}</b>von ${c.gelesen} treffen zu</span></div>${qRows(c.treffer.map(t=>S.apps.find(a=>a.id===t.id)).filter(Boolean),[],Object.fromEntries(c.treffer.map(t=>[t.id,t.grund])))}<p class="f" style="margin-top:8px">Inhaltliche Antworten kommen von Mistral und können danebenliegen. Im Zweifel die Texte selbst lesen.</p>`)}
+    else{const l=qRun(sp);
+      body=head(u)+(sp.darstellung==='anzahl'?`<div class="kpi" style="margin:4px 0 10px"><span><b>${l.length}</b>${l.length===1?'Bewerbung':'Bewerbungen'}</span></div>${l.length&&l.length<=12?qRows(l,sp.spalten):l.length?'<button class="link u m" id="askList">anzeigen</button>':''}`
+        :sp.darstellung==='verteilung'?`<div style="max-width:620px">${qBars(l,sp.gruppe)}</div><p class="m" style="margin-top:6px">${l.length} Bewerbungen</p>`
+        :`<p class="m">${l.length} ${l.length===1?'Bewerbung':'Bewerbungen'}</p>${qRows(l,sp.spalten.concat(sp.sortierung?[sp.sortierung.feld]:[]))}`)}}
+  out.innerHTML=`<section class="ask-out">${body}</section>`;
+  $('#askX').onclick=()=>{ASK=null;askRender()};
+  if($('#askNo'))$('#askNo').onclick=()=>{ASK=null;askRender()};
+  if($('#askList'))$('#askList').onclick=()=>{ASK.spec={...ASK.spec,darstellung:'liste'};askRender()};
+  if($('#askOk'))$('#askOk').onclick=()=>{const sp=ASK.spec;
+    if(sp.typ==='einstellung'){const k=sp.einstellung.feld,old=S[k];S[k]=k==='plaetze'?parseInt(sp.einstellung.wert,10):String(sp.einstellung.wert).trim();save();ASK.undo=()=>{S[k]=old;save()}}
+    else{const l=qRun(sp);ASK.doneList=l;ASK.undo=qApply(sp,l)}
+    ASK.done=true;render();askRender()};
+  if($('#askUndo'))$('#askUndo').onclick=()=>{ASK.undo();ASK=null;render();askRender();toast('Rückgängig gemacht')};
+}
+function wireAsk(){const i=$('#askIn');if(!i)return;
+  i.onkeydown=e=>{if(e.key==='Enter'&&!e.isComposing){e.preventDefault();askSubmit(i.value)}else if(e.key==='Escape'){if(i.value)i.value='';else{ASK=null;askRender();i.blur()}}};
+  document.addEventListener('keydown',e=>{if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'&&!$('#ask').hidden){e.preventDefault();i.focus();i.select()}},true)}
+
 /* ---------- /einstellungen ---------- */
 function download(name,text,type){const u=URL.createObjectURL(new Blob([text],{type}));const l=document.createElement('a');l.href=u;l.download=name;document.body.appendChild(l);l.click();l.remove();setTimeout(()=>URL.revokeObjectURL(u),1000)}
 function csv(rows){return '﻿'+rows.map(r=>r.map(v=>{const s=String(v??'');return /[;"\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s}).join(';')).join('\n')}
@@ -1029,7 +1138,7 @@ function demoApps(){
   try{HEALTH=await api('/api/health');S=emptyState();SET_SHADOW=JSON.stringify(settingsOf(S));applyRemote(await api('/api/sync?since=0'),true)}
   catch(e){if(e.status!==401)$('#main').innerHTML='<p class="bad">Server nicht erreichbar. Bitte die Seite neu laden.</p>';return}
   if(!S.apps.length&&tab!=='einstellungen')tab='import';
-  render();
+  wireAsk();render();
 })();
 </script>
 </body>

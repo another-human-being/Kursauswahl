@@ -986,6 +986,7 @@ function qFields(){return Object.keys(QF).filter(k=>!(k==='info'&&!F().info)&&!(
 function qShow(k,v){if(v===true)return'ja';if(v===false)return'nein';if(v==null||v==='')return'–';if(k==='status')return STL[v]||v;if(k==='geschlecht')return({w:'weiblich',m:'männlich','?':'unklar'})[v]||v;if(k==='semester')return v+'. Semester';if(k==='eingang')return d6(v);return String(v)}
 const qn=v=>typeof v==='string'?norm(v):v;
 function qMatch(a,f){const v=QF[f.feld](a),w=f.wert;
+  if(['name','vorname','nachname'].includes(f.feld)&&['=','enthaelt','in'].includes(f.op)){const hay=sk(v);return(Array.isArray(w)?w:[w]).some(y=>sk(y).split(/\s+/).filter(Boolean).every(t=>hay.includes(t)))}
   const eq=(x,y)=>{if(typeof x==='boolean')return x===(y===true||y==='true'||y==='ja');if(typeof x==='number'||x==null)return x!=null&&Number(x)===Number(y);
     if(f.feld==='studiengang')return norm(x)===norm(canonSg(String(y)))||norm(x)===norm(y);return qn(x)===qn(String(y))};
   switch(f.op){case'=':return eq(v,w);case'!=':return!eq(v,w);case'in':return(Array.isArray(w)?w:[w]).some(y=>eq(v,y));
@@ -1041,7 +1042,7 @@ function askRender(){const out=$('#askOut');if(!out)return;if(LIVE&&LIVE.course!
   if(ASK.err)body=head(esc(ASK.frage))+`<p class="bad">${esc(ASK.err)}</p>`;
   else if(ASK.loading)body=head(esc(ASK.frage))+`<p class="m">${esc(ASK.loading)}</p>`;
   else{const sp=ASK.spec,u=`verstanden als: ${esc(qDescribe(sp))}`;
-    if(sp.typ==='unklar')body=head(esc(ASK.frage))+`<p>${esc(sp.hinweis||'Das konnte ich nicht zuordnen.')}</p><p class="m">Zum Beispiel: „Wie viele Master haben zugesagt?“ · „Verteilung Studiengang bei den Zusagen“ · „Alle ohne Motivation auf später“ · „Wer erwähnt Nachhaltigkeit?“</p>`;
+    if(sp.typ==='unklar'){const h=searchLocal(ASK.frage);body=head(esc(ASK.frage))+(h.length?`<p class="m">Als Frage nicht zuzuordnen, aber die Suche findet ${h.length} ${h.length===1?'Bewerbung':'Bewerbungen'}:</p>${qRows(h.map(x=>x.a),[],Object.fromEntries(h.map(x=>[x.a.id,x.why])))}<p class="f" style="margin-top:10px">Für Fragen oder Änderungen zum Beispiel: „Wie viele Master haben zugesagt?“ · „Patricia Müller auf Warteliste“ · „Alle ohne Motivation auf später“</p>`:`<p>${esc(sp.hinweis||'Das konnte ich nicht zuordnen.')}</p><p class="m">Zum Beispiel: „Wie viele Master haben zugesagt?“ · „Verteilung Studiengang bei den Zusagen“ · „Alle ohne Motivation auf später“ · „Wer erwähnt Nachhaltigkeit?“</p>`)}
     else if(sp.typ==='einstellung'){const k=sp.einstellung.feld,v=k==='plaetze'?parseInt(sp.einstellung.wert,10):String(sp.einstellung.wert??'').trim(),bad=k==='plaetze'?!(v>0&&v<1000):!v;
       body=head(esc(ASK.frage))+(ASK.done?`<p>${esc(SETL[k])} geändert. ${ASK.undo?'<button class="link u" id="askUndo">rückgängig</button>':''}</p>`:bad?`<p class="bad">Ungültiger Wert für ${esc(SETL[k])}.</p>`:
         `<p>${esc(SETL[k])}: <span class="m">${esc(S[k])}</span> → <b style="font-weight:500">${esc(v)}</b></p><div class="ask-act"><button class="btn solid" id="askOk">Übernehmen</button><button class="btn" id="askNo">Abbrechen</button></div>`)}

@@ -120,6 +120,7 @@ kbd{font:inherit;color:var(--faint);margin-left:6px}
 .ask-out{padding-block:0 30px;margin-top:-12px}
 .ask-h{display:flex;justify-content:space-between;gap:16px;margin-bottom:12px;font-size:13px}
 .ask-act{display:flex;gap:8px;margin:4px 0 16px}
+.ask-out .li.on{background:var(--hover);box-shadow:inset 2px 0 0 var(--fg)}
 #askOut:not(:empty)+main{border-top:1px solid var(--fg);padding-top:26px}
 .row .n{text-align:right;color:var(--muted)} .row .n b{color:var(--fg);font-weight:400}
 .mailgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:40px}
@@ -200,7 +201,7 @@ img.ph[data-ph]{cursor:zoom-in}
     <span class="sp"></span>
     <button class="link" data-t="einstellungen">/einstellungen</button>
   </nav>
-  <div class="ask" id="ask" hidden><span class="ask-p" aria-hidden="true">›</span><input id="askIn" type="text" autocomplete="off" spellcheck="false" placeholder="Fragen oder ändern, z. B. „Wie viele Master haben zugesagt?“" aria-label="Fragen oder ändern"><kbd>⌘K</kbd></div>
+  <div class="ask" id="ask" hidden><span class="ask-p" aria-hidden="true">›</span><input id="askIn" type="text" autocomplete="off" spellcheck="false" placeholder="Suchen, fragen oder ändern: „Müller“, „BWL Master“, „Wie viele haben zugesagt?“" aria-label="Suchen, fragen oder ändern"><kbd>⌘K</kbd></div>
   <div id="askOut"></div>
   <main id="main"><p class="m">Lädt …</p></main>
 </div>
@@ -385,7 +386,8 @@ function header(){
   const z=byStatus('zusage').length;$('#hKurs').innerHTML=Object.keys(COURSES).map(c=>`<button class="link ${c===COURSE?'t':'m'}" data-c="${c}">${esc(COURSES[c].name)}</button>`).join('<span class="f"> / </span>');$$('#hKurs [data-c]').forEach(b=>b.onclick=()=>switchCourse(b.dataset.c));$('#hSem').textContent=S.semester+(S.demo?' · Beispieldaten':'');
   $('#hCount').innerHTML=S.apps.length?`<span class="${z>P()?'bad':''}">${z}</span><span class="m"> / ${P()}</span>`:'';
   $$('#tabs button').forEach(b=>b.setAttribute('aria-current',b.dataset.t===tab));
-  $('#ask').hidden=$('#tabs').hidden;if(ASK&&ASK.course!==COURSE){ASK=null;askRender()}
+  $('#ask').hidden=$('#tabs').hidden;if(ASK&&ASK.course!==COURSE)ASK=null;
+  if(LIVE&&LIVE.course===COURSE){const id=LIVE.idx>=0&&LIVE.hits[LIVE.idx]&&LIVE.hits[LIVE.idx].a.id;LIVE.hits=searchLocal(LIVE.q);LIVE.idx=id?LIVE.hits.findIndex(x=>x.a.id===id):-1}askRender()
 }
 function render(){header();document.onkeydown=null;
   const needData=['auswahl','mails','sitzung','auswertung'].includes(tab)&&!S.apps.length;
@@ -1034,7 +1036,7 @@ async function askSubmit(frage){frage=String(frage||'').trim();if(!frage)return;
       if(!ASK||ASK.frage!==frage)return;ASK.loading=null;ASK.res={content:r,pool:l.length}}
     askRender()}
   catch(e){if(e.status===401)return;if(ASK&&ASK.frage===frage){ASK.loading=null;ASK.err=e.message;askRender()}}}
-function askRender(){const out=$('#askOut');if(!out)return;if(!ASK||ASK.course!==COURSE){out.innerHTML='';return}
+function askRender(){const out=$('#askOut');if(!out)return;if(LIVE&&LIVE.course!==COURSE){LIVE=null;const i=$('#askIn');if(i)i.value=''}if(LIVE){liveRender();return}if(!ASK||ASK.course!==COURSE){out.innerHTML='';return}
   const head=(t)=>`<div class="ask-h"><span class="m">${t}</span><button class="link m" id="askX" aria-label="Schließen">schließen</button></div>`;let body='';
   if(ASK.err)body=head(esc(ASK.frage))+`<p class="bad">${esc(ASK.err)}</p>`;
   else if(ASK.loading)body=head(esc(ASK.frage))+`<p class="m">${esc(ASK.loading)}</p>`;
@@ -1063,8 +1065,32 @@ function askRender(){const out=$('#askOut');if(!out)return;if(!ASK||ASK.course!=
     ASK.done=true;render();askRender()};
   if($('#askUndo'))$('#askUndo').onclick=()=>{ASK.undo();ASK=null;render();askRender();toast('Rückgängig gemacht')};
 }
-function wireAsk(){const i=$('#askIn');if(!i)return;
-  i.onkeydown=e=>{if(e.key==='Enter'&&!e.isComposing){e.preventDefault();askSubmit(i.value)}else if(e.key==='Escape'){if(i.value)i.value='';else{ASK=null;askRender();i.blur()}}};
+// Sofortsuche beim Tippen: lokal, ohne Mistral. Enter öffnet den Treffer oder stellt die Eingabe als Frage.
+let LIVE=null; // {q, hits, idx}
+const sk=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/ß/g,'ss');
+const looksLikeQuestion=q=>/\?/.test(q)||q.trim().split(/\s+/).length>3||/^(wie|wer|was|welche|wieviel|zeig|liste|alle|setz|setze|verteil|pl(ä|ae)tze|anzahl|(ä|ae)nder|mach|markier|sortier|gib)/i.test(q.trim());
+function searchLocal(q){const toks=sk(q).split(/\s+/).filter(Boolean);if(!toks.length)return[];const out=[];
+  for(const a of S.apps){const F_=[['name',sk((a.vn||'')+' '+(a.nn||'')),3],['studiengang',sk(a.sg)+' '+sk(sgS(a.sg)),2],['abschluss',sk(a.abschluss),1.5],['status',sk(STL[qStat(a)]),1.5],['email',sk(a.email),1],['notizen',sk(a.notes),.6],['motivation',sk(a.mot),.5]];
+    let score=0,why='';const ok=toks.every(t=>{let best=0,bf=null;for(const [k,v,w] of F_){if(!v)continue;const i=v.indexOf(t);if(i<0)continue;const s=w*(i===0||v[i-1]===' '?1.5:1);if(s>best){best=s;bf=k}}
+      if(!bf)return false;score+=best;if((bf==='notizen'||bf==='motivation')&&!why){const src=bf==='notizen'?a.notes:a.mot,i=sk(src).indexOf(t),st=Math.max(0,i-30);why=(bf==='notizen'?'Notiz: ':'')+(st?'…':'')+src.slice(st,i+t.length+40).replace(/\s+/g,' ').trim()+'…'}return true});
+    if(ok)out.push({a,score,why})}
+  return out.sort((x,y)=>y.score-x.score||String(y.a.date).localeCompare(String(x.a.date)))}
+function liveRender(){const out=$('#askOut');if(!LIVE){askRender();return}const h=LIVE.hits,q=LIVE.q,ask=HEALTH.mistral;
+  const rows=h.slice(0,LIVE.all?200:8).map((x,i)=>{const a=x.a;return `<div class="li${i===LIVE.idx?' on':''}" data-open="${a.id}"><span class="m">${a.fav?'<span class="star on">★</span> ':''}${d6(a.date)}</span><span class="x">${photoTag(a.id,'th')}${fullName(a)} <span class="m">${meta(a)}</span> ${infoBadge(a)}${x.why?` <span class="m">· ${esc(x.why)}</span>`:''}</span><span class="tag">${esc(STL[qStat(a)])}</span></div>`}).join('');
+  out.innerHTML=`<section class="ask-out"><div class="ask-h"><span class="m">Suche · ${h.length} ${h.length===1?'Treffer':'Treffer'}</span>${ask?`<button class="link m" id="askAsk">${looksLikeQuestion(q)&&!h.length?'↵ ':''}als Frage stellen</button>`:''}</div>
+    ${h.length?`<div class="list">${rows}</div>${h.length>8&&!LIVE.all?`<p style="margin-top:8px"><button class="link u m" id="liveAll">alle ${h.length} zeigen</button></p>`:''}`:`<p class="m">Kein Name, Studiengang oder Text passt.${ask?' Mit Enter geht die Eingabe als Frage an Mistral.':''}</p>`}</section>`;
+  if($('#askAsk'))$('#askAsk').onclick=()=>{const v=$('#askIn').value;LIVE=null;askSubmit(v)};
+  if($('#liveAll'))$('#liveAll').onclick=()=>{LIVE.all=true;liveRender()}}
+function wireAsk(){const i=$('#askIn');if(!i)return;let t=null;
+  i.oninput=()=>{clearTimeout(t);t=setTimeout(()=>{const q=i.value.trim();if(!q){LIVE=null;askRender();return}LIVE={q,hits:searchLocal(q),idx:-1,course:COURSE};liveRender()},60)};
+  i.onkeydown=e=>{if(e.isComposing)return;
+    if((e.key==='ArrowDown'||e.key==='ArrowUp')&&LIVE&&LIVE.hits.length){e.preventDefault();const n=Math.min(LIVE.hits.length,LIVE.all?200:8);LIVE.idx=e.key==='ArrowDown'?(LIVE.idx+1)%n:(LIVE.idx<=0?n-1:LIVE.idx-1);liveRender();const r=$('#askOut .li.on');if(r)r.scrollIntoView({block:'nearest'});return}
+    if(e.key==='Enter'){e.preventDefault();const q=i.value.trim();if(!q)return;
+      const hit=LIVE&&(LIVE.idx>=0?LIVE.hits[LIVE.idx]:LIVE.hits.length===1&&!looksLikeQuestion(q)?LIVE.hits[0]:null);
+      if(hit){sel=hit.a.id;rSheet();return}
+      if(LIVE&&LIVE.hits.length&&!looksLikeQuestion(q)&&LIVE.idx<0){LIVE.idx=0;liveRender();return}
+      LIVE=null;askSubmit(q);return}
+    if(e.key==='Escape'){if(i.value){i.value='';LIVE=null;askRender()}else{ASK=null;askRender();i.blur()}}};
   document.addEventListener('keydown',e=>{if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'&&!$('#ask').hidden){e.preventDefault();i.focus();i.select()}},true)}
 
 /* ---------- /einstellungen ---------- */

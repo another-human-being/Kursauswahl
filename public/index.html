@@ -381,7 +381,7 @@ try{const v=JSON.parse(localStorage.getItem('kursauswahl-ui')||'{}');if(v.tab)ta
 function saveUi(){try{localStorage.setItem('kursauswahl-ui',JSON.stringify({tab,sub,course:COURSE}))}catch(e){}}
 
 function header(){
-  const z=byStatus('zusage').length;$('#hKurs').innerHTML=Object.keys(COURSES).map(c=>`<button class="link ${c===COURSE?'t':'m'}" data-c="${c}">${esc(c===COURSE?S.kurs:((CS[c]&&CS[c].kurs)||COURSES[c].name))}</button>`).join('<span class="f"> / </span>');$$('#hKurs [data-c]').forEach(b=>b.onclick=()=>switchCourse(b.dataset.c));$('#hSem').textContent=S.semester+(S.demo?' · Beispieldaten':'');
+  const z=byStatus('zusage').length;$('#hKurs').innerHTML=Object.keys(COURSES).map(c=>`<button class="link ${c===COURSE?'t':'m'}" data-c="${c}">${esc(COURSES[c].name)}</button>`).join('<span class="f"> / </span>');$$('#hKurs [data-c]').forEach(b=>b.onclick=()=>switchCourse(b.dataset.c));$('#hSem').textContent=S.semester+(S.demo?' · Beispieldaten':'');
   $('#hCount').innerHTML=S.apps.length?`<span class="${z>P()?'bad':''}">${z}</span><span class="m"> / ${P()}</span>`:'';
   $$('#tabs button').forEach(b=>b.setAttribute('aria-current',b.dataset.t===tab));
   $('#ask').hidden=$('#tabs').hidden;if(ASK&&ASK.course!==COURSE){ASK=null;askRender()}
@@ -990,7 +990,7 @@ function qMatch(a,f){const v=QF[f.feld](a),w=f.wert;
     case'>':case'>=':case'<':case'<=':{if(v==null||v==='')return false;const num=typeof v==='number',x=num?v:String(v),y=num?Number(w):String(w);if(num&&isNaN(y))return false;
       return f.op==='>'?x>y:f.op==='>='?x>=y:f.op==='<'?x<y:x<=y}}return true}
 function qDescribe(sp){const opT={'=':'=','!=':'≠','>':'>','>=':'≥','<':'<','<=':'≤',enthaelt:'enthält',in:'ist',leer:'leer',nicht_leer:'nicht leer'};
-  const parts=sp.filter.map(f=>`${QL[f.feld]} ${opT[f.op]}${/leer/.test(f.op)?'':' '+(Array.isArray(f.wert)?f.wert.map(x=>qShow(f.feld,x)).join(' oder '):qShow(f.feld,f.wert))}`);
+  const sh=(k,x)=>k==='semester'?String(x):qShow(k,x),parts=sp.filter.map(f=>`${QL[f.feld]} ${opT[f.op]}${/leer/.test(f.op)?'':' '+(Array.isArray(f.wert)?f.wert.map(x=>sh(f.feld,x)).join(' oder '):sh(f.feld,f.wert))}`);
   if(!parts.length)parts.push('alle Bewerbungen');
   if(sp.typ==='abfrage'&&sp.darstellung==='verteilung')parts.push('nach '+QL[sp.gruppe]);
   if(sp.sortierung)parts.push(`sortiert nach ${QL[sp.sortierung.feld]} ${sp.sortierung.richtung==='ab'?'absteigend':'aufsteigend'}`);
@@ -999,10 +999,10 @@ function qRun(sp){let l=S.apps.filter(a=>sp.filter.every(f=>qMatch(a,f)));
   if(sp.sortierung){const g=QF[sp.sortierung.feld],d=sp.sortierung.richtung==='ab'?-1:1;l.sort((x,y)=>{const a=g(x),b=g(y);if(a==null||a==='')return 1;if(b==null||b==='')return-1;return(a>b?1:a<b?-1:0)*d})}
   else l.sort((x,y)=>String(y.date).localeCompare(String(x.date)));return sp.limit?l.slice(0,sp.limit):l}
 function qRows(l,extra,why){if(!l.length)return'<p class="m">Keine Bewerbung passt.</p>';
-  return `<div class="list">${l.slice(0,200).map(a=>`<div class="li" data-open="${a.id}"><span class="m">${a.fav?'<span class="star on">★</span> ':''}${d6(a.date)}</span><span class="x">${photoTag(a.id,'th')}${fullName(a)} <span class="m">${meta(a)}</span> ${infoBadge(a)}${why&&why[a.id]?` <span class="m">· ${esc(why[a.id])}</span>`:''}</span><span class="tag">${(extra||[]).filter(k=>!['name','studiengang','abschluss','semester'].includes(k)).map(k=>esc(qShow(k,QF[k](a)))).concat([esc(STL[qStat(a)])]).join(' · ')}</span></div>`).join('')}</div>${l.length>200?`<p class="m">… und ${l.length-200} weitere</p>`:''}`}
-function qBars(l,k){const c=new Map(),cz=new Map();l.forEach(a=>{const v=qShow(k,QF[k](a));c.set(v,(c.get(v)||0)+1);if(a.status==='zusage')cz.set(v,(cz.get(v)||0)+1)});
+  return `<div class="list">${l.slice(0,200).map(a=>`<div class="li" data-open="${a.id}"><span class="m">${a.fav?'<span class="star on">★</span> ':''}${d6(a.date)}</span><span class="x">${photoTag(a.id,'th')}${fullName(a)} <span class="m">${meta(a)}</span> ${infoBadge(a)}${why&&why[a.id]?` <span class="m">· ${esc(why[a.id])}</span>`:''}</span><span class="tag">${[...new Set(extra||[])].filter(k=>!['name','studiengang','abschluss','semester','status'].includes(k)).map(k=>esc(qShow(k,QF[k](a)))).concat([esc(STL[qStat(a)])]).join(' · ')}</span></div>`).join('')}</div>${l.length>200?`<p class="m">… und ${l.length-200} weitere</p>`:''}`}
+function qBars(l,k,sp){const c=new Map(),cz=new Map();l.forEach(a=>{const v=qShow(k,QF[k](a));c.set(v,(c.get(v)||0)+1);if(a.status==='zusage')cz.set(v,(cz.get(v)||0)+1)});
   const keys=[...c.keys()].sort((x,y)=>k==='semester'?(parseInt(x)||99)-(parseInt(y)||99):c.get(y)-c.get(x));if(!keys.length)return'<p class="m">Keine Bewerbung passt.</p>';
-  const max=Math.max(...c.values()),z=k!=='status';
+  const max=Math.max(...c.values()),z=k!=='status'&&!(sp&&sp.filter.some(f=>f.feld==='status'));
   return `${z?'<div class="leg"><span><i style="background:var(--s1)"></i>Zusagen</span><span><i style="background:var(--rule)"></i>alle</span></div>':''}${keys.map(v=>`<div class="row"><span class="lbl" title="${esc(v)}">${esc(v)}</span><span class="track"><span class="all" style="width:${c.get(v)/max*100}%"></span>${z?`<span class="sel" style="width:${(cz.get(v)||0)/max*100}%"></span>`:''}</span><span class="n">${z?`<b>${cz.get(v)||0}</b> / `:''}${c.get(v)}</span></div>`).join('')}`}
 function qPreviewVal(sp){const s=sp.setze;if(!s)return'';if(s.feld==='status')return STL[s.wert]||s.wert;return qShow(s.feld,s.feld==='studiengang'?canonSg(String(s.wert)):s.wert)}
 function qValid(sp){const s=sp.setze;if(!s)return'';const v=s.wert;
@@ -1050,7 +1050,7 @@ function askRender(){const out=$('#askOut');if(!out)return;if(!ASK||ASK.course!=
         `${c.antwort?`<p>${esc(c.antwort)}</p>`:''}${c.gelesen<c.gesamt?`<p class="bad">Nur ${c.gelesen} von ${c.gesamt} Texten gelesen, die übrigen waren zu lang. Bitte enger eingrenzen.</p>`:''}<div class="kpi" style="margin:6px 0 14px"><span><b>${c.treffer.length}</b>von ${c.gelesen} treffen zu</span></div>${qRows(c.treffer.map(t=>S.apps.find(a=>a.id===t.id)).filter(Boolean),[],Object.fromEntries(c.treffer.map(t=>[t.id,t.grund])))}<p class="f" style="margin-top:8px">Inhaltliche Antworten kommen von Mistral und können danebenliegen. Im Zweifel die Texte selbst lesen.</p>`)}
     else{const l=qRun(sp);
       body=head(u)+(sp.darstellung==='anzahl'?`<div class="kpi" style="margin:4px 0 10px"><span><b>${l.length}</b>${l.length===1?'Bewerbung':'Bewerbungen'}</span></div>${l.length&&l.length<=12?qRows(l,sp.spalten):l.length?'<button class="link u m" id="askList">anzeigen</button>':''}`
-        :sp.darstellung==='verteilung'?`<div style="max-width:620px">${qBars(l,sp.gruppe)}</div><p class="m" style="margin-top:6px">${l.length} Bewerbungen</p>`
+        :sp.darstellung==='verteilung'?`<div style="max-width:620px">${qBars(l,sp.gruppe,sp)}</div><p class="m" style="margin-top:6px">${l.length} Bewerbungen</p>`
         :`<p class="m">${l.length} ${l.length===1?'Bewerbung':'Bewerbungen'}</p>${qRows(l,sp.spalten.concat(sp.sortierung?[sp.sortierung.feld]:[]))}`)}}
   out.innerHTML=`<section class="ask-out">${body}</section>`;
   $('#askX').onclick=()=>{ASK=null;askRender()};
